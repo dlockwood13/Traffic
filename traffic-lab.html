@@ -1,0 +1,2250 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>M-LAB · Traffic Pattern Laboratory</title>
+<meta name="description" content="Interactive UK traffic physics lab: phantom jams, lane-change impact, speed vs time, and motorway flow capacity.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --tarmac:#0B0E12;
+  --panel:#11161D;
+  --panel2:#151C25;
+  --line:#222C39;
+  --ink:#E8EDF2;
+  --muted:#7E8A9B;
+  --teal:#2DD4BF;
+  --teal-deep:#0E4D45;
+  --amber:#FFB000;
+  --red:#FF4D5E;
+  --blue:#1B5FD0;
+  --radius:10px;
+  --font-d:'Chakra Petch',system-ui,sans-serif;
+  --font-m:'IBM Plex Mono',ui-monospace,monospace;
+  --font-b:system-ui,-apple-system,'Segoe UI',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{background:var(--tarmac);color:var(--ink);font-family:var(--font-b);font-size:15px;line-height:1.55;min-height:100vh}
+body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+  background:radial-gradient(1200px 500px at 70% -10%, rgba(45,212,191,.06), transparent 60%),
+             radial-gradient(900px 420px at 10% 110%, rgba(27,95,208,.05), transparent 60%)}
+.wrap{position:relative;z-index:1;max-width:1080px;margin:0 auto;padding:0 16px 64px}
+
+/* ---------- header ---------- */
+header{display:flex;align-items:center;gap:14px;padding:20px 0 12px;flex-wrap:wrap}
+.plate{font-family:var(--font-d);font-weight:700;font-size:20px;letter-spacing:.04em;
+  background:var(--blue);color:#fff;border-radius:6px;padding:6px 12px;line-height:1;
+  border:2px solid #fff2;box-shadow:0 2px 14px rgba(27,95,208,.45)}
+.brand h1{font-family:var(--font-d);font-weight:700;font-size:18px;letter-spacing:.14em;text-transform:uppercase}
+.brand p{color:var(--muted);font-size:12.5px;letter-spacing:.04em}
+.live{margin-left:auto;font-family:var(--font-m);font-size:11px;color:var(--muted);display:flex;align-items:center;gap:7px}
+.live i{width:8px;height:8px;border-radius:50%;background:var(--teal);display:inline-block;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+
+/* ---------- tabs ---------- */
+nav{display:flex;gap:2px;border-bottom:1px solid var(--line);margin:8px 0 22px;overflow-x:auto;scrollbar-width:none}
+nav::-webkit-scrollbar{display:none}
+.tab{appearance:none;background:none;border:none;color:var(--muted);font-family:var(--font-d);
+  font-size:13px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;padding:12px 16px;
+  cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;min-height:44px}
+.tab:hover{color:var(--ink)}
+.tab[aria-selected="true"]{color:var(--teal);border-bottom-color:var(--teal)}
+.tab:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+
+/* ---------- panels ---------- */
+.panel{display:none;animation:fade .25s ease}
+.panel.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.scene{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px;margin-bottom:16px}
+.scene h2{font-family:var(--font-d);font-size:15px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;margin-bottom:4px}
+.scene h2 .tick{color:var(--teal)}
+.scene>p.sub{color:var(--muted);font-size:13px;margin-bottom:14px;max-width:72ch}
+canvas{display:block;width:100%;border-radius:8px;background:#07090C}
+.canvas-frame{position:relative;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.matrix-frame{position:relative;border:1px solid #2a3543;border-radius:8px;overflow:hidden;
+  box-shadow:inset 0 0 30px rgba(0,0,0,.7), 0 0 18px rgba(255,176,0,.05)}
+.matrix-frame::after{content:"";position:absolute;inset:0;pointer-events:none;
+  background:repeating-linear-gradient(0deg, rgba(0,0,0,.22) 0 1px, transparent 1px 3px)}
+.frame-label{position:absolute;top:8px;left:10px;font-family:var(--font-m);font-size:10px;
+  letter-spacing:.18em;text-transform:uppercase;color:var(--muted);z-index:2;pointer-events:none}
+.frame-label b{color:var(--amber);font-weight:600}
+
+/* ---------- controls ---------- */
+.controls{display:flex;flex-wrap:wrap;gap:14px 22px;align-items:flex-end;margin-top:14px}
+.ctl{display:flex;flex-direction:column;gap:6px;min-width:150px;flex:1 1 150px;max-width:240px}
+.ctl label{font-family:var(--font-m);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.ctl label output{color:var(--teal);font-weight:600}
+input[type=range]{accent-color:var(--teal);width:100%;height:28px;cursor:pointer}
+input[type=number]{background:var(--panel2);border:1px solid var(--line);color:var(--ink);
+  font-family:var(--font-m);font-size:14px;padding:9px 10px;border-radius:7px;width:100%}
+.btnrow{display:flex;gap:10px;flex-wrap:wrap}
+button.btn{font-family:var(--font-d);font-weight:700;font-size:12.5px;letter-spacing:.12em;text-transform:uppercase;
+  background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:8px;
+  padding:0 18px;height:44px;cursor:pointer;transition:border-color .15s,transform .05s}
+button.btn:hover{border-color:var(--teal)}
+button.btn:active{transform:translateY(1px)}
+button.btn.brake{background:linear-gradient(180deg,#3a1216,#2a0d10);border-color:#7a2730;color:#ffb9c0;
+  box-shadow:0 0 14px rgba(255,77,94,.18)}
+button.btn.brake:hover{border-color:var(--red);box-shadow:0 0 20px rgba(255,77,94,.4)}
+button.btn.go{border-color:var(--teal-deep);color:var(--teal)}
+button.btn.amber{border-color:#6b4d09;color:var(--amber)}
+
+/* ---------- readouts ---------- */
+.readouts{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-top:14px}
+.ro{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:11px 13px;position:relative;overflow:hidden}
+.ro::before{content:"";position:absolute;top:0;left:0;width:26px;height:2px;background:var(--teal)}
+.ro.a::before{background:var(--amber)}
+.ro.r::before{background:var(--red)}
+.ro .k{font-family:var(--font-m);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.ro .v{font-family:var(--font-d);font-weight:700;font-size:24px;line-height:1.15;margin-top:3px;font-variant-numeric:tabular-nums}
+.ro .v small{font-size:12px;color:var(--muted);font-weight:600;letter-spacing:.04em}
+.ro .v.teal{color:var(--teal)} .ro .v.amber{color:var(--amber)} .ro .v.red{color:var(--red)}
+
+/* ---------- notes / insight ---------- */
+.insight{border-left:2px solid var(--amber);background:linear-gradient(90deg,rgba(255,176,0,.06),transparent 70%);
+  padding:12px 14px;border-radius:0 8px 8px 0;margin-top:16px;font-size:13.5px;color:#cfd6df}
+.insight b{color:var(--amber);font-family:var(--font-d);letter-spacing:.06em;text-transform:uppercase;font-size:12px;display:block;margin-bottom:3px}
+.legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;font-family:var(--font-m);font-size:11px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.dot{width:10px;height:10px;border-radius:3px;display:inline-block}
+.grad{width:54px;height:10px;border-radius:3px;background:linear-gradient(90deg,#FF4D5E,#FFB000,#2DD4BF)}
+
+/* ---------- calculator ---------- */
+.calc-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:12px;margin-bottom:14px}
+.result-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:10px;margin:14px 0}
+table.cmp{width:100%;border-collapse:collapse;font-family:var(--font-m);font-size:12.5px;margin-top:6px}
+table.cmp th{color:var(--muted);font-weight:400;text-transform:uppercase;font-size:10px;letter-spacing:.12em;text-align:left;padding:7px 8px;border-bottom:1px solid var(--line)}
+table.cmp td{padding:8px;border-bottom:1px solid #1a212b;font-variant-numeric:tabular-nums}
+table.cmp td.hl{color:var(--teal);font-weight:600}
+table.cmp tr.you td{background:rgba(45,212,191,.05)}
+
+/* ---------- verdict / ab test ---------- */
+.verdict{margin-top:12px;padding:13px 15px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;
+  font-family:var(--font-m);font-size:13px;display:none;white-space:pre-line}
+.verdict.show{display:block}
+.verdict b{color:var(--teal)}
+
+footer{margin-top:34px;border-top:1px solid var(--line);padding-top:18px;color:var(--muted);font-size:12px}
+footer h3{font-family:var(--font-d);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink);margin-bottom:8px}
+footer ul{list-style:none}
+footer li{margin-bottom:5px}
+footer a{color:var(--teal);text-decoration:none}
+footer a:hover{text-decoration:underline}
+.motion-note{display:none;color:var(--amber);font-size:12.5px;margin-top:8px;font-family:var(--font-m)}
+@media (prefers-reduced-motion: reduce){.motion-note{display:block}.live i{animation:none}}
+@media (max-width:640px){
+  .ro .v{font-size:20px}
+  .scene{padding:13px}
+  .ctl{max-width:none}
+}
+
+/* ---- ML layer (tabs 05-07) ---- */
+.qw{margin-top:10px;padding:10px 13px;border:1px dashed #2a3543;border-radius:8px;color:var(--muted);font-size:12px;font-family:var(--font-m);letter-spacing:.02em}
+.qw.on{border-style:solid;font-weight:600}
+.qw.on.red{background:rgba(255,77,94,.08);border-color:rgba(255,77,94,.5);color:#ff8a96}
+.qw.on.amber{background:rgba(255,176,0,.08);border-color:rgba(255,176,0,.5);color:#ffc94d}
+.qw.on.teal{background:rgba(45,212,191,.08);border-color:rgba(45,212,191,.5);color:#5fe3d2}
+.qw b{color:inherit;margin-right:6px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <span class="plate">M·LAB</span>
+  <div class="brand">
+    <h1>Traffic Pattern Laboratory</h1>
+    <p>Live physics simulations of UK motorway behaviour · Intelligent Driver Model + MOBIL</p>
+  </div>
+  <span class="live"><i></i>SIM RUNNING</span>
+</header>
+
+<nav role="tablist" aria-label="Scenarios">
+  <button class="tab" role="tab" aria-selected="true" data-tab="shock">01 Shockwave</button>
+  <button class="tab" role="tab" aria-selected="false" data-tab="lanes">02 Lane discipline</button>
+  <button class="tab" role="tab" aria-selected="false" data-tab="speed">03 Speed vs time</button>
+  <button class="tab" role="tab" aria-selected="false" data-tab="flow">04 Flow &amp; headway</button>
+  <button class="tab" role="tab" aria-selected="false" data-tab="pred">05 Prediction</button>
+  <button class="tab" role="tab" aria-selected="false" data-tab="signals">06 Signal timing</button>
+  <button class="tab" role="tab" aria-selected="false" data-tab="net">07 Network graph</button>
+</nav>
+<p class="motion-note">Reduced motion is on in your system settings; simulations start paused. Use Resume to run them.</p>
+
+<!-- ============ TAB 1 : SHOCKWAVE ============ -->
+<section class="panel active" id="panel-shock" role="tabpanel">
+  <div class="scene">
+    <h2><span class="tick">//</span> One driver brakes. Everyone behind pays.</h2>
+    <p class="sub">A closed loop of traffic, every driver following the Intelligent Driver Model. Hit BRAKE to make one car slam on for 1.5 seconds, then watch the stop-and-go wave it creates travel <em>backwards</em> through traffic, long after the original car has driven off. At high density, waves form on their own; nobody has to do anything wrong.</p>
+
+    <div class="canvas-frame">
+      <span class="frame-label">RING ROAD · <b id="shock-status">FREE FLOW</b></span>
+      <canvas id="ringCanvas" height="420" aria-label="Ring road traffic simulation"></canvas>
+    </div>
+
+    <div class="legend">
+      <span><span class="grad"></span> stopped → free flow</span>
+      <span><span class="dot" style="background:var(--red);box-shadow:0 0 8px var(--red)"></span> braking car</span>
+    </div>
+
+    <div class="controls">
+      <div class="btnrow">
+        <button class="btn brake" id="brakeBtn">⚠ Brake</button>
+        <button class="btn" id="shockPause">Pause</button>
+        <button class="btn" id="shockReset">Reset</button>
+      </div>
+      <div class="ctl">
+        <label>Traffic density · <output id="densOut">30</output> cars</label>
+        <input type="range" id="densSlider" min="14" max="40" value="30" step="1">
+      </div>
+      <div class="ctl">
+        <label>Sim speed · <output id="simSpeedOut">1.0</output>×</label>
+        <input type="range" id="simSpeedSlider" min="0.5" max="3" value="1" step="0.5">
+      </div>
+    </div>
+
+    <div class="readouts">
+      <div class="ro"><div class="k">Mean speed</div><div class="v teal" id="roMean">–</div></div>
+      <div class="ro r"><div class="k">Slowest car</div><div class="v" id="roMin">–</div></div>
+      <div class="ro a"><div class="k">Wave speed (rearward)</div><div class="v amber" id="roWave">–</div></div>
+      <div class="ro"><div class="k">Flow rate</div><div class="v" id="roFlow">–</div></div>
+      <div class="ro r"><div class="k">Cars trapped &lt;10 mph</div><div class="v red" id="roJam">0</div></div>
+    </div>
+  </div>
+
+  <div class="scene">
+    <h2><span class="tick">//</span> Space–time diagram</h2>
+    <p class="sub">The instrument traffic engineers actually use. Each car draws a horizontal trace through time, coloured by its speed. A phantom jam appears as a red band sloping <em>down-left</em>: the jam moving backwards along the road while time moves forward. On real motorways these waves roll rearward at roughly 10 to 12 mph.</p>
+    <div class="matrix-frame">
+      <span class="frame-label">POSITION ↑ · TIME → · <b>GANTRY FEED</b></span>
+      <canvas id="stCanvas" height="230" aria-label="Space time diagram of traffic"></canvas>
+    </div>
+    <div class="insight"><b>What the research says</b>
+      Sugiyama et al. (2008) put 22 drivers on a 230 m circular track and asked them simply to cruise. With no bottleneck and no incident, stop-and-go waves emerged spontaneously and rolled backwards at about 20 km/h, almost exactly matching motorway measurements. Above a critical density, jams are a property of the <em>system</em>, not of any individual driver; one over-firm brake input is enough to crystallise one.
+    </div>
+  </div>
+</section>
+
+<!-- ============ TAB 2 : LANES ============ -->
+<section class="panel" id="panel-lanes" role="tabpanel">
+  <div class="scene">
+    <h2><span class="tick">//</span> Is the weaver actually winning?</h2>
+    <p class="sub">Two lanes of heavy motorway traffic. The <b style="color:var(--amber)">amber car</b> weaves aggressively into whichever lane looks faster (MOBIL lane-change model, zero politeness). The <b>white car</b> starts beside it and holds its lane. Every forced merge makes the car behind brake, and that braking propagates. Watch who is actually ahead, and what the weaving does to everyone else.</p>
+
+    <div class="canvas-frame">
+      <span class="frame-label">M-WAY · 2 LANES · <b id="lane-status">RUNNING</b></span>
+      <canvas id="laneCanvas" height="190" aria-label="Two lane motorway simulation"></canvas>
+    </div>
+
+    <div class="legend">
+      <span><span class="dot" style="background:var(--amber)"></span> weaver (changes lanes)</span>
+      <span><span class="dot" style="background:#E8EDF2"></span> steady (holds lane)</span>
+      <span><span class="grad"></span> other traffic by speed</span>
+      <span><span class="dot" style="background:#5A7BA6;width:18px"></span> long vehicle = HGV (56 mph limiter, holds the inside lane)</span>
+    </div>
+
+    <div class="controls">
+      <div class="btnrow">
+        <button class="btn" id="lanePause">Pause</button>
+        <button class="btn" id="laneReset">Reset</button>
+        <button class="btn go" id="abBtn">Run controlled A/B test</button>
+      </div>
+      <div class="ctl">
+        <label>Traffic level · <output id="laneDensOut">26</output> cars/lane</label>
+        <input type="range" id="laneDensSlider" min="14" max="34" value="26" step="1">
+      </div>
+      <div class="ctl">
+        <label>Aggressive drivers · <output id="aggrOut">15</output>%</label>
+        <input type="range" id="aggrSlider" min="0" max="50" value="15" step="5">
+      </div>
+    </div>
+
+    <div class="readouts">
+      <div class="ro a"><div class="k">Weaver lane changes</div><div class="v amber" id="roLC">0</div></div>
+      <div class="ro a"><div class="k">Weaver lead over steady</div><div class="v" id="roLead">–</div></div>
+      <div class="ro a"><div class="k">Projected gain per 10 mi</div><div class="v" id="roGain">–</div></div>
+      <div class="ro r"><div class="k">Brake events caused</div><div class="v red" id="roBrakes">0</div></div>
+      <div class="ro"><div class="k">Mean traffic speed</div><div class="v teal" id="roLaneMean">–</div></div>
+    </div>
+
+    <div class="verdict" id="abVerdict"></div>
+
+    <div class="insight"><b>What the research says</b>
+      Trajectory data from Sydney's M1 (2023) found lane changing brings no significant speed benefit to the individual in most conditions, with a narrow exception around 45 to 50 km/h. A University of Toronto simulation put the best-case gain from aggressive weaving at roughly 2% of journey time. Meanwhile, a 2024 study of a 3.3 km weaving section concluded that concentrated lane changing is the main contributor to speed collapse there: the manoeuvre punches "voids" into the receiving lane and forces braking that ripples rearward.
+    </div>
+  </div>
+</section>
+
+<!-- ============ TAB 3 : SPEED VS TIME ============ -->
+<section class="panel" id="panel-speed" role="tabpanel">
+  <div class="scene">
+    <h2><span class="tick">//</span> What does the extra speed actually buy?</h2>
+    <p class="sub">Pure arithmetic first, then reality. Time saved is <b>not linear</b>: t = d ÷ v, so each extra 10 mph buys less than the last. The realism slider accounts for the share of the journey genuinely spent at cruise speed (junctions, roadworks and traffic apply equally to both runs). Fuel model is calibrated to the AA's published figures.</p>
+
+    <div class="calc-grid">
+      <div class="ctl"><label>Distance (miles)</label><input type="number" id="calcDist" value="123" min="1" max="2000" step="1"></div>
+      <div class="ctl"><label>Baseline speed (mph)</label><input type="number" id="calcA" value="70" min="30" max="100" step="1"></div>
+      <div class="ctl"><label>Faster speed (mph)</label><input type="number" id="calcB" value="85" min="30" max="120" step="1"></div>
+      <div class="ctl"><label>MPG at 70 mph</label><input type="number" id="calcMpg" value="45" min="15" max="90" step="1"></div>
+      <div class="ctl"><label>Fuel price (£/litre)</label><input type="number" id="calcFuel" value="1.42" min="0.8" max="3" step="0.01"></div>
+      <div class="ctl">
+        <label>Share of route at cruise · <output id="cruiseOut">100</output>%</label>
+        <input type="range" id="cruiseSlider" min="40" max="100" value="100" step="5">
+      </div>
+    </div>
+
+    <div class="result-strip">
+      <div class="ro"><div class="k">Time @ baseline</div><div class="v" id="resTA">–</div></div>
+      <div class="ro"><div class="k">Time @ faster</div><div class="v" id="resTB">–</div></div>
+      <div class="ro"><div class="k">Time saved</div><div class="v teal" id="resSaved">–</div></div>
+      <div class="ro a"><div class="k">Extra fuel</div><div class="v amber" id="resFuelPct">–</div></div>
+      <div class="ro a"><div class="k">Extra cost this trip</div><div class="v amber" id="resCost">–</div></div>
+      <div class="ro r"><div class="k">Stopping distance</div><div class="v" id="resStop">–</div></div>
+    </div>
+
+    <div class="canvas-frame">
+      <span class="frame-label">JOURNEY TIME vs CRUISE SPEED · <b>DIMINISHING RETURNS</b></span>
+      <canvas id="timeChart" height="280" aria-label="Journey time versus speed chart"></canvas>
+    </div>
+    <div style="height:12px"></div>
+    <div class="canvas-frame">
+      <span class="frame-label">RELATIVE FUEL USE PER MILE · <b>70 MPH = 100</b></span>
+      <canvas id="fuelChart" height="240" aria-label="Fuel use versus speed chart"></canvas>
+    </div>
+
+    <table class="cmp" id="cmpTable" aria-label="Speed comparison table"></table>
+
+    <div class="insight"><b>The honest summary</b>
+      <span id="speedInsight"></span>
+    </div>
+  </div>
+</section>
+
+<!-- ============ TAB 4 : FLOW ============ -->
+<section class="panel" id="panel-flow" role="tabpanel">
+  <div class="scene">
+    <h2><span class="tick">//</span> Why smart motorways set 50 in congestion</h2>
+    <p class="sub">Two identical rings of dense traffic get an identical disturbance every 15 seconds. Lane A is signed at 70: drivers rush gaps, so each disturbance crystallises into a stop-and-go wave. Lane B is signed at 50: the smaller speed differences absorb the same disturbance. Watch which lane actually delivers more vehicle-miles.</p>
+    <div class="canvas-frame">
+      <span class="frame-label">A: SIGNED 70 · B: SIGNED 50 · SAME DENSITY, SAME DISTURBANCE</span>
+      <canvas id="twinCanvas" height="210" aria-label="Comparison of 70mph and 50mph traffic"></canvas>
+    </div>
+    <div class="controls">
+      <div class="btnrow">
+        <button class="btn" id="twinPause">Pause</button>
+        <button class="btn" id="twinReset">Reset</button>
+      </div>
+    </div>
+    <div class="readouts">
+      <div class="ro"><div class="k">A · mean speed (signed 70)</div><div class="v" id="roTwinA">–</div></div>
+      <div class="ro"><div class="k">B · mean speed (signed 50)</div><div class="v teal" id="roTwinB">–</div></div>
+      <div class="ro a"><div class="k">Distance delivered A vs B</div><div class="v amber" id="roTwinD">–</div></div>
+    </div>
+  </div>
+
+  <div class="scene">
+    <h2><span class="tick">//</span> Lane capacity: the headway equation</h2>
+    <p class="sub">A lane's maximum throughput is set almost entirely by the time gap drivers keep. Capacity ≈ 3600 ÷ (headway + car-length time). Tailgating raises theoretical capacity but destroys stability, which is exactly how phantom jams start; this is the trade the whole lab is about.</p>
+    <div class="controls" style="margin-top:0">
+      <div class="ctl">
+        <label>Time headway · <output id="hwOut">1.5</output> s</label>
+        <input type="range" id="hwSlider" min="0.8" max="3" value="1.5" step="0.1">
+      </div>
+      <div class="ctl">
+        <label>Cruise speed · <output id="capVOut">70</output> mph</label>
+        <input type="range" id="capVSlider" min="30" max="80" value="70" step="5">
+      </div>
+    </div>
+    <div class="result-strip">
+      <div class="ro"><div class="k">Lane capacity</div><div class="v teal" id="roCap">–</div></div>
+      <div class="ro"><div class="k">Gap to car ahead</div><div class="v" id="roGap">–</div></div>
+      <div class="ro a"><div class="k">Stability</div><div class="v" id="roStab">–</div></div>
+    </div>
+    <div class="canvas-frame">
+      <span class="frame-label">FUNDAMENTAL DIAGRAM · FLOW vs DENSITY · <b>ONE LANE</b></span>
+      <canvas id="fdChart" height="260" aria-label="Fundamental diagram of traffic flow"></canvas>
+    </div>
+    <div class="insight"><b>Reading the curve</b>
+      Left of the peak, adding cars adds flow: the road is under-used. Right of the peak, every extra car <em>reduces</em> what the lane delivers, and operation becomes unstable; this is where one brake tap becomes a wave rolling back at the slope of the falling branch (about 10 to 12 mph). Variable speed limits work by holding traffic just left of the peak instead of letting it tip over it.
+    </div>
+  </div>
+</section>
+
+<!-- ============ TAB 5 : PREDICTION ============ -->
+<section class="panel" id="panel-pred" role="tabpanel">
+  <div class="scene">
+    <h2><span class="tick">//</span> The data pipeline: ingest, match, predict</h2>
+    <p class="sub">A synthetic motorway day (24h compressed into 144 seconds) with morning and evening peaks. The pipeline below is the real one used at scale: <b>ingest</b> live detector samples, <b>match</b> them against a stored historical pattern for that time of day, then <b>predict</b> ahead with a seasonal AR(2) model, the ARIMA family's working core. The forecaster and the clustering both run live in this page on the sim's own sensor feed; nothing is pre-baked.</p>
+
+    <div class="canvas-frame">
+      <span class="frame-label">CORRIDOR · 3 LANES · DAY CLOCK <b id="prClock">–</b></span>
+      <canvas id="predRoad" height="86" aria-label="Corridor live view"></canvas>
+    </div>
+
+    <div class="controls">
+      <div class="btnrow">
+        <button class="btn brake" id="predIncident">⚠ Incident (10s)</button>
+        <button class="btn" id="predShoulder">Open shoulder lane</button>
+        <button class="btn" id="predPause">Pause</button>
+        <button class="btn" id="predReset">Reset</button>
+      </div>
+      <div class="ctl">
+        <label>Sim speed · <output id="predSpeedOut">1.0</output>×</label>
+        <input type="range" id="predSpeedSlider" min="0.5" max="6" value="1" step="0.5">
+      </div>
+    </div>
+
+    <div class="readouts">
+      <div class="ro"><div class="k">Live speed</div><div class="v teal" id="prSpeed">–</div></div>
+      <div class="ro"><div class="k">Flow</div><div class="v" id="prFlow">–</div></div>
+      <div class="ro a"><div class="k">Regime (K-Means)</div><div class="v" id="prRegime">–</div></div>
+      <div class="ro"><div class="k">Samples ingested</div><div class="v" id="prSamples">–</div></div>
+      <div class="ro a"><div class="k">AR(2) fit</div><div class="v" id="prAR" style="font-size:15px">–</div></div>
+      <div class="ro"><div class="k">1-step forecast MAE</div><div class="v" id="prMAE">–</div></div>
+    </div>
+
+    <div id="predQW" class="qw">–</div>
+    <div id="predLaneRec" class="qw">–</div>
+  </div>
+
+  <div class="scene">
+    <h2><span class="tick">//</span> Forecast against the pattern store</h2>
+    <p class="sub">Teal is the observed feed. The dashed grey line is the learned time-of-day pattern (48 half-hour bins, built from previous days). Amber is the live forecast: pattern plus an AR(2) model fitted to the residuals every two seconds, with a 95% band that widens with horizon. Trigger an incident and watch the observation fall out of the band, the regime chip flip to ANOMALY, and the forecast chase the new reality.</p>
+    <div class="matrix-frame">
+      <span class="frame-label">SPEED · OBSERVED vs PATTERN vs FORECAST</span>
+      <canvas id="predChart" height="250" aria-label="Forecast chart"></canvas>
+    </div>
+    <div style="height:12px"></div>
+    <div class="canvas-frame">
+      <span class="frame-label">TRAFFIC REGIMES · K-MEANS ON (SPEED, FLOW, VARIABILITY) · LIVE POINT CIRCLED</span>
+      <canvas id="predScatter" height="210" aria-label="Cluster scatter"></canvas>
+    </div>
+    <div class="insight"><b>What the research says</b>
+      This is the published Google Maps recipe: aggregate live location pings, merge with a database of historical patterns for that road at that time, then let the model produce ETAs and forecasts. Short-term traffic forecasting has leaned on the ARIMA family since the Box-Jenkins era because seasonal differencing strips out the rush-hour cycle and leaves a learnable residual; the surveys in the references map forty years of that literature. Clustering (K-Means here, DBSCAN in much of the literature) turns the raw feed into a small set of named regimes, while the anomaly flag trips when the live feed breaks from the stored time-of-day pattern beyond the forecast band for several samples running, which is exactly what an incident looks like to a pattern store. The shoulder-lane recommendation is the dynamic lane management play: capacity follows the demand pattern instead of waiting for the queue.
+    </div>
+  </div>
+</section>
+
+<!-- ============ TAB 6 : SIGNAL TIMING ============ -->
+<section class="panel" id="panel-signals" role="tabpanel">
+  <div class="scene">
+    <h2><span class="tick">//</span> Evolving a green wave</h2>
+    <p class="sub">An arterial with four signalled junctions and cross traffic. Three controllers run in parallel on <em>identical</em> arrivals: a <b>fixed</b> 50/50 plan, an <b>adaptive</b> controller that re-splits green time each cycle from live queues, and a <b>genetic algorithm</b> that breeds whole timing plans (green split + offset per junction), scoring each chromosome by simulated total delay. Offsets matter because platoons take 32 seconds between junctions: the GA has to discover the green wave, nobody tells it one exists.</p>
+
+    <div class="canvas-frame">
+      <span class="frame-label">ARTERIAL · 4 JUNCTIONS · IDENTICAL DEMAND PER CONTROLLER</span>
+      <canvas id="sigCanvas" height="220" aria-label="Signal corridor"></canvas>
+    </div>
+
+    <div class="controls">
+      <div class="btnrow">
+        <button class="btn go" id="gaBtn">⚡ Evolve plan (GA)</button>
+        <button class="btn" id="sigView_fixed">View: Fixed</button>
+        <button class="btn" id="sigView_adapt">View: Adaptive</button>
+        <button class="btn" id="sigView_ga">View: GA</button>
+        <button class="btn" id="sigPause">Pause</button>
+        <button class="btn" id="sigReset">Reset</button>
+      </div>
+    </div>
+
+    <div class="readouts">
+      <div class="ro"><div class="k">Fixed plan delay</div><div class="v" id="sgFixed">–</div></div>
+      <div class="ro"><div class="k">Adaptive delay</div><div class="v" id="sgAdapt">–</div></div>
+      <div class="ro a"><div class="k">GA plan delay</div><div class="v teal" id="sgGA">–</div></div>
+      <div class="ro a"><div class="k">GA status</div><div class="v" id="sgGen" style="font-size:15px">not yet run</div></div>
+      <div class="ro"><div class="k">Offline improvement</div><div class="v amber" id="sgImp">–</div></div>
+    </div>
+  </div>
+
+  <div class="scene">
+    <h2><span class="tick">//</span> Fitness over generations</h2>
+    <p class="sub">Population of 24 timing plans, tournament selection, blend crossover, gaussian mutation, two elites carried over. Each generation evaluates every chromosome with a full 6-minute headless simulation. Watch the best line fall below the fixed-plan baseline within a handful of generations, then plateau as the green wave locks in.</p>
+    <div class="canvas-frame">
+      <span class="frame-label">GENETIC ALGORITHM · DELAY PER VEHICLE, LOWER IS BETTER</span>
+      <canvas id="gaChart" height="200" aria-label="GA fitness chart"></canvas>
+    </div>
+    <div class="insight"><b>What the research says</b>
+      Evolutionary search is the standard answer when the timing space is too big to enumerate: even this toy corridor has an effectively continuous space of splits and offsets per junction, and city grids multiply that into the billions. GA approaches to signal timing repeatedly find double-digit delay reductions against fixed plans by discovering coordination (offsets) humans would tune by hand. The adaptive controller alongside it is the SCOOT/SCATS idea in miniature: measure queues, re-split greens every cycle. Adaptive wins when demand shifts, the GA wins when coordination matters; real deployments layer both, which is what active traffic management means in practice.
+    </div>
+  </div>
+</section>
+
+<!-- ============ TAB 7 : NETWORK GRAPH ============ -->
+<section class="panel" id="panel-net" role="tabpanel">
+  <div class="scene">
+    <h2><span class="tick">//</span> The network as a graph: prediction by message passing</h2>
+    <p class="sub">Junctions as nodes, road segments as edges, exactly how graph neural networks see a city. Traffic flows S→T over a motorway, an A-road and two cut-throughs, with route choice responding to live ETAs and real spillback between edges. Every second the page runs <b>two rounds of neighbour message passing</b> on the line graph, the core GNN operation: each edge updates its expectation from the state of the edges its traffic feeds into, because congestion physically propagates backwards along exactly those connections. The halo around each edge is that 15-second-ahead prediction; the inner line is live truth. Honesty note: the message-passing structure is real and the weights are hand-set; a production GNN learns them from millions of trajectories.</p>
+
+    <div class="canvas-frame">
+      <span class="frame-label">S→T NETWORK · LIVE + PREDICTED STATE · ⚠ = QUEUE WARNING SIGN</span>
+      <canvas id="netCanvas" height="300" aria-label="Network graph"></canvas>
+    </div>
+
+    <div class="controls">
+      <div class="btnrow">
+        <button class="btn brake" id="ntIncident">⚠ Crash on the M-way (90s sim)</button>
+        <button class="btn" id="ntStadium">◆ Stadium turns out (120s sim)</button>
+        <button class="btn" id="ntPause">Pause</button>
+        <button class="btn" id="ntReset">Reset</button>
+      </div>
+    </div>
+
+    <div class="readouts">
+      <div class="ro"><div class="k">Network mean speed</div><div class="v teal" id="ntMean">–</div></div>
+      <div class="ro"><div class="k">Throughput</div><div class="v" id="ntThr">–</div></div>
+      <div class="ro a"><div class="k">M-way ETA</div><div class="v" id="ntEtaM">–</div></div>
+      <div class="ro a"><div class="k">A-road ETA</div><div class="v" id="ntEtaA">–</div></div>
+      <div class="ro"><div class="k">Early-warning hit rate</div><div class="v amber" id="ntHit">–</div></div>
+    </div>
+
+    <div id="ntBanner" class="qw">–</div>
+    <p class="sub" style="margin-top:10px;font-size:12px">Route shares (logit on live ETA): <b id="ntShares">–</b></p>
+
+    <div class="insight"><b>What the research says</b>
+      Google's DeepMind collaboration moved Maps ETAs onto graph neural networks precisely because the road network's structure <em>is</em> the prediction problem: a crash on one highway changes arrival times on parallel routes it never touches, and only a model that sees the graph can anticipate that. Recent work (including the 2025 Nature Scientific Reports line of GNN traffic predictors) keeps extending the same skeleton: spatial dependency from the adjacency, temporal dependency from each edge's history, both of which this demo carries in miniature. The stadium button is the planning use case: simulate the development against historical patterns before pouring concrete, which is what tools like PTV Vissim sell to highway authorities. The ⚠ markers are queue-warning systems doing their actual job, telling drivers about a jam the model can see forming before they can, which is how secondary collisions get prevented.
+    </div>
+  </div>
+</section>
+
+<footer>
+  <h3>Models &amp; sources</h3>
+  <ul>
+    <li>Car following: Treiber, Hennecke &amp; Helbing (2000), Intelligent Driver Model · Lane changing: Kesting, Treiber &amp; Helbing (2007), MOBIL.</li>
+    <li>Sugiyama et al. (2008), <i>New Journal of Physics</i>: spontaneous jam formation on a circular track, wave speed ≈ 20 km/h rearward.</li>
+    <li>He et al. (2023), <i>Communications in Transportation Research</i>: M1 Sydney trajectories; lane changing gives no significant individual speed benefit in most regimes.</li>
+    <li>Arman &amp; Tampère (2024), <i>Transportation Research Record</i>: concentrated lane changing is the main contributor to speed drop in weaving areas.</li>
+    <li>AA / RAC fuel guidance: 80 mph can use up to 25% more fuel than 70 mph; 70 uses ~9% more than 60. Highway Code stopping distances.</li>
+    <li>Prediction layer: Box-Jenkins / ARIMA-family short-term forecasting (Vlahogianni et al. survey lineage) · K-Means / DBSCAN regime clustering and anomaly flagging · the Google Maps ingestion-to-prediction pipeline and the DeepMind GNN ETA work · Nature Scientific Reports (2025) GNN traffic prediction.</li>
+    <li>Control layer: genetic-algorithm signal timing · SCOOT/SCATS-style adaptive control · active traffic management (dynamic lane opening, queue-warning systems) · PTV-style simulation for testing infrastructure before it is built.</li>
+    <li>All simulations run live in this page. Parameters are realistic but simplified; treat outputs as illustrative physics, not forecasts.</li>
+  </ul>
+</footer>
+
+</div>
+<script>
+/*ENGINE-START*/
+"use strict";
+const MPH = 0.44704;            // 1 mph in m/s
+const toMph = ms => ms / MPH;
+
+function mulberry32(seed){
+  let a = seed >>> 0;
+  return function(){
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/* ---------- Intelligent Driver Model ---------- */
+function idmAccel(v, dv, gap, p){
+  // v: speed (m/s), dv: approach rate v - vLead, gap: bumper gap (m)
+  const sStar = p.s0 + Math.max(0, v * p.T + (v * dv) / (2 * Math.sqrt(p.a * p.b)));
+  const s = Math.max(gap, 0.5);
+  let acc = p.a * (1 - Math.pow(v / p.v0, 4) - (sStar / s) * (sStar / s));
+  return Math.max(-9, Math.min(acc, 3));
+}
+
+/* ---------- Single-lane ring road ---------- */
+class RingSim {
+  constructor(opts){
+    const o = Object.assign({
+      n: 24, ring: 750, v0: 31.3, a: 0.65, b: 1.7, T: 1.5, s0: 2, len: 4.6, seed: 7
+    }, opts);
+    this.o = o;
+    this.ring = o.ring;
+    this.t = 0;
+    this.rng = mulberry32(o.seed);
+    this.cars = [];
+    const gap = o.ring / o.n;
+    for (let i = 0; i < o.n; i++){
+      this.cars.push({
+        x: i * gap,
+        v: o.v0 * 0.55,
+        len: o.len,
+        v0: o.v0 * (0.96 + 0.08 * this.rng()),
+        T:  o.T  * (0.92 + 0.16 * this.rng()),
+        forcedUntil: -1,
+        acc: 0
+      });
+    }
+    this.braker = -1;
+    this.waveSamples = [];     // {t, x} unwrapped position of slowest car
+    this._lastWaveX = null;
+    this._unwrapOff = 0;
+  }
+  brake(duration = 2.0, decel = -7){
+    // choose the car nearest the top of the ring view (x ~ 0) for visibility
+    let idx = 0, best = Infinity;
+    for (let i = 0; i < this.cars.length; i++){
+      const d = Math.min(this.cars[i].x, this.ring - this.cars[i].x);
+      if (d < best && this.cars[i].v > 3){ best = d; idx = i; }
+    }
+    this.cars[idx].forcedUntil = this.t + duration;
+    this.cars[idx].forcedDecel = decel;
+    this.braker = idx;
+    this._brakerUntil = this.t + duration + 1.2;
+  }
+  step(dt){
+    const cars = this.cars, n = cars.length, R = this.ring, o = this.o;
+    // cars stay sorted on a ring if they never overtake (single lane) — enforce order by construction
+    for (let i = 0; i < n; i++){
+      const c = cars[i], lead = cars[(i + 1) % n];
+      const gap = ((lead.x - c.x - lead.len) % R + R) % R;
+      let acc;
+      if (c.forcedUntil > this.t){
+        acc = c.forcedDecel || -7;
+      } else {
+        acc = idmAccel(c.v, c.v - lead.v, gap, { ...o, v0: c.v0, T: c.T });
+      }
+      c.acc = acc;
+    }
+    for (let i = 0; i < n; i++){
+      const c = cars[i];
+      c.v = Math.max(0, c.v + c.acc * dt);
+      c.x = ((c.x + c.v * dt) % R + R) % R;
+    }
+    this.t += dt;
+    if (this.braker >= 0 && this.t > this._brakerUntil) this.braker = -1;
+  }
+  metrics(){
+    let sum = 0, min = Infinity, jam = 0;
+    for (const c of this.cars){
+      sum += c.v;
+      if (c.v < min) min = c.v;
+      if (c.v < 10 * MPH) jam++;
+    }
+    const mean = sum / this.cars.length;
+    const flow = (this.cars.length / this.ring) * mean * 3600; // veh/h past a point
+    return { mean, min, jam, flow };
+  }
+  sampleWave(){
+    // track unwrapped position of the slowest car to estimate rearward wave speed
+    const m = this.metrics();
+    if (m.min > Math.max(4, m.mean * 0.55)) { this.waveSamples.length = 0; this._lastWaveX = null; return null; }
+    let idx = 0;
+    for (let i = 1; i < this.cars.length; i++) if (this.cars[i].v < this.cars[idx].v) idx = i;
+    let x = this.cars[idx].x;
+    if (this._lastWaveX !== null){
+      let raw = x + this._unwrapOff;
+      while (raw - this._lastWaveX >  this.ring / 2) { this._unwrapOff -= this.ring; raw -= this.ring; }
+      while (raw - this._lastWaveX < -this.ring / 2) { this._unwrapOff += this.ring; raw += this.ring; }
+      x = raw;
+    }
+    this._lastWaveX = x;
+    this.waveSamples.push({ t: this.t, x });
+    const cutoff = this.t - 9;
+    while (this.waveSamples.length && this.waveSamples[0].t < cutoff) this.waveSamples.shift();
+    if (this.waveSamples.length < 8) return null;
+    // least squares slope
+    const s = this.waveSamples;
+    let st = 0, sx = 0, stt = 0, stx = 0;
+    for (const p of s){ st += p.t; sx += p.x; stt += p.t * p.t; stx += p.t * p.x; }
+    const k = s.length;
+    const denom = k * stt - st * st;
+    if (Math.abs(denom) < 1e-6) return null;
+    return (k * stx - st * sx) / denom; // m/s, negative = rearward
+  }
+}
+
+/* ---------- Two-lane straight road (periodic) with MOBIL-lite ---------- */
+class LaneSim {
+  constructor(opts){
+    const o = Object.assign({
+      perLane: 26, road: 900, v0: 31.3, a: 0.85, b: 1.8, T: 1.4, s0: 2, len: 4.6, lorryShare: 0.25,
+      pctAggressive: 0.15, seed: 11
+    }, opts);
+    this.o = o;
+    this.road = o.road;
+    this.t = 0;
+    this.rng = mulberry32(o.seed);
+    this.cars = [];
+    this.brakeEvents = 0;
+    let id = 0;
+    for (let lane = 0; lane < 2; lane++){
+      const gap = o.road / o.perLane;
+      for (let i = 0; i < o.perLane; i++){
+        const lorry = (lane === 0) && (this.rng() < o.lorryShare);
+        const aggressive = !lorry && this.rng() < o.pctAggressive;
+        this.cars.push(this._mkCar(id++, lane, i * gap + this.rng() * 4, aggressive, null, lorry));
+      }
+    }
+    // tracer pair: weaver (amber) and steady (white), inserted at same x in lanes 0/1
+    const x0 = 10;
+    this.weaver = this._mkCar(id++, 0, x0, true,  'weaver');
+    this.steady = this._mkCar(id++, 1, x0, false, 'steady');
+    this.weaver.dist = 0; this.steady.dist = 0;
+    this.weaver.lcCount = 0;
+    this.cars.push(this.weaver, this.steady);
+  }
+  _mkCar(id, lane, x, aggressive, tag, lorry){
+    const o = this.o;
+    return {
+      id, lane, x: ((x % o.road) + o.road) % o.road,
+      y: lane,                       // visual lateral position (lerped)
+      v: o.v0 * 0.5,
+      len: lorry ? 12 : o.len,
+      lorry: !!lorry,
+      v0: lorry ? 25.0 * (0.98 + 0.04 * this.rng()) : o.v0 * (0.95 + 0.1 * this.rng()),
+      T: o.T * (lorry ? 1.15 : (0.9 + 0.2 * this.rng())),
+      aggressive, tag: tag || null,
+      cooldown: this.rng() * 3,
+      changing: 0,                   // >0 while straddling both lanes mid-manoeuvre
+      prevLane: lane,
+      startleUntil: -1,              // cut-up drivers back off for a couple of seconds
+      acc: 0, dist: 0
+    };
+  }
+  _occupancy(){
+    // a changing car physically blocks BOTH lanes for the duration of the manoeuvre
+    const occ = [[], []];
+    for (const c of this.cars){
+      occ[c.lane].push(c);
+      if (c.changing > 0 && c.prevLane !== c.lane) occ[c.prevLane].push(c);
+    }
+    occ[0].sort((a, b) => a.x - b.x);
+    occ[1].sort((a, b) => a.x - b.x);
+    return occ;
+  }
+  _neighbours(car, lane, sorted){
+    const arr = sorted[lane], R = this.road;
+    if (!arr.length) return { lead: null, follow: null, gLead: R, gFollow: R };
+    let lo = 0, hi = arr.length;
+    while (lo < hi){ const mid = (lo + hi) >> 1; (arr[mid].x <= car.x) ? lo = mid + 1 : hi = mid; }
+    let li = lo % arr.length, fi = (lo - 1 + arr.length) % arr.length;
+    if (arr[li] === car) li = (li + 1) % arr.length;
+    if (arr[fi] === car) fi = (fi - 1 + arr.length) % arr.length;
+    const L = (arr[li] === car) ? null : arr[li];
+    const F = (arr[fi] === car) ? null : arr[fi];
+    const gLead   = L ? ((L.x - car.x - L.len) % R + R) % R : R;
+    const gFollow = F ? ((car.x - F.x - car.len) % R + R) % R : R;
+    return { lead: L, follow: F, gLead, gFollow };
+  }
+  step(dt){
+    const o = this.o, R = this.road;
+    const occ = this._occupancy();
+
+    // --- lane change decisions (MOBIL-lite) ---
+    for (const c of this.cars){
+      c.cooldown -= dt;
+      if (c.changing > 0) continue;
+      if (c.tag === 'steady' || c.lorry) continue;
+      if (c.cooldown > 0) continue;
+      const target = 1 - c.lane;
+      const cur = this._neighbours(c, c.lane, occ);
+      const nw  = this._neighbours(c, target, occ);
+      const pr = c.aggressive ? { pol: 0.0, thr: 0.10, bSafe: 4.0, cd: 1.8 }
+                              : { pol: 0.35, thr: 0.30, bSafe: 2.2, cd: 4.0 };
+      if (nw.gLead < 1.5 || nw.gFollow < 1.5) continue;
+      const pme = { ...o, v0: c.v0, T: c.T };
+      const aCur = idmAccel(c.v, c.v - (cur.lead ? cur.lead.v : c.v), cur.gLead, pme);
+      const aNew = idmAccel(c.v, c.v - (nw.lead  ? nw.lead.v  : c.v), nw.gLead,  pme);
+      let dFollower = 0, aAfterF = 0;
+      if (nw.follow){
+        const pf = { ...o, v0: nw.follow.v0, T: nw.follow.T };
+        const fCur = this._neighbours(nw.follow, target, occ);
+        const aBeforeF = idmAccel(nw.follow.v, nw.follow.v - (fCur.lead ? fCur.lead.v : nw.follow.v), fCur.gLead, pf);
+        aAfterF = idmAccel(nw.follow.v, nw.follow.v - c.v, nw.gFollow, pf);
+        if (aAfterF < -pr.bSafe) continue;                    // unsafe for them = blocked
+        dFollower = aAfterF - aBeforeF;
+      }
+      const incentive = (aNew - aCur) + pr.pol * dFollower;
+      if (incentive > pr.thr){
+        c.prevLane = c.lane;
+        c.lane = target;
+        c.changing = 0.9;                                     // straddles both lanes while moving over
+        c.cooldown = pr.cd;
+        if (c.tag === 'weaver') c.lcCount++;
+        if (nw.follow && aAfterF < -1.2){
+          nw.follow.startleUntil = this.t + 2.5;              // cut-up driver backs off
+          if (aAfterF < -2) this.brakeEvents++;               // forced real braking on someone
+        }
+      }
+    }
+
+    // --- longitudinal physics: constrained by every lane the car occupies ---
+    const occ2 = this._occupancy();
+    for (const c of this.cars){
+      const Teff = (this.t < c.startleUntil) ? c.T * 1.6 : c.T;
+      const pme = { ...o, v0: c.v0, T: Teff };
+      let acc = Infinity;
+      const held = (c.changing > 0 && c.prevLane !== c.lane) ? [c.lane, c.prevLane] : [c.lane];
+      for (const ln of held){
+        const nb = this._neighbours(c, ln, occ2);
+        const a = idmAccel(c.v, c.v - (nb.lead ? nb.lead.v : c.v), nb.gLead, pme);
+        if (a < acc) acc = a;
+      }
+      if (c.changing > 0) acc = Math.min(acc, 0.25);          // can't floor it mid-manoeuvre
+      c.acc = acc;
+    }
+    for (const c of this.cars){
+      c.v = Math.max(0, c.v + c.acc * dt);
+      const dx = c.v * dt;
+      c.x = ((c.x + dx) % R + R) % R;
+      c.dist += dx;
+      if (c.changing > 0) c.changing = Math.max(0, c.changing - dt);
+      c.y += (c.lane - c.y) * Math.min(1, dt * 4);            // lateral lerp
+    }
+    this.t += dt;
+  }
+  meanSpeed(){
+    let s = 0; for (const c of this.cars) s += c.v;
+    return s / this.cars.length;
+  }
+}
+/*ENGINE-END*/
+
+/* ================= UI LAYER ================= */
+const $ = id => document.getElementById(id);
+const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+function fitCanvas(cv, cssH){
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const w = cv.parentElement.clientWidth;
+  cv.style.height = cssH + 'px';
+  cv.width = Math.max(1, Math.round(w * dpr));
+  cv.height = Math.max(1, Math.round(cssH * dpr));
+  const ctx = cv.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return { ctx, w, h: cssH, dpr };
+}
+
+function speedColor(v, vMax){
+  // red (0) -> amber (mid) -> teal (free flow)
+  const f = Math.max(0, Math.min(1, v / vMax));
+  let r, g, b;
+  if (f < 0.5){ const u = f / 0.5;          // red -> amber
+    r = 255; g = Math.round(77 + (176 - 77) * u); b = Math.round(94 - 94 * u);
+  } else {      const u = (f - 0.5) / 0.5;  // amber -> teal
+    r = Math.round(255 - (255 - 45) * u); g = Math.round(176 + (212 - 176) * u); b = Math.round(0 + 191 * u);
+  }
+  return `rgb(${r},${g},${b})`;
+}
+const fmtMph = ms => Math.round(toMph(ms));
+const fmtMin = m => {
+  const h = Math.floor(m / 60), mm = m - h * 60;
+  return h > 0 ? `${h}h ${mm.toFixed(0)}m` : `${m.toFixed(1)} min`;
+};
+
+/* ---------- tabs ---------- */
+document.querySelectorAll('.tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(b => b.setAttribute('aria-selected', b === btn ? 'true' : 'false'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    $('panel-' + btn.dataset.tab).classList.add('active');
+    window.dispatchEvent(new Event('resize'));
+  });
+});
+
+/* ================= TAB 1 · SHOCKWAVE ================= */
+const shock = {
+  sim: null, paused: reduceMotion, speedMul: 1,
+  acc: 0, last: 0, stCol: 0, stTimer: 0, waveTimer: 0, lastWave: null
+};
+function shockInit(){
+  shock.sim = new RingSim({ n: +$('densSlider').value, seed: (Math.random() * 1e9) | 0 });
+  shock.lastWave = null;
+  const st = fitCanvas($('stCanvas'), 230);
+  st.ctx.fillStyle = '#07090C';
+  st.ctx.fillRect(0, 0, st.w, st.h);
+  shock.stCol = 0;
+}
+function drawRing(){
+  const { ctx, w, h } = fitCanvas($('ringCanvas'), Math.min(440, Math.max(300, window.innerWidth * 0.6)));
+  const cx = w / 2, cy = h / 2;
+  const Rpx = Math.min(w, h) / 2 - 34;
+  const sim = shock.sim;
+  ctx.fillStyle = '#07090C';
+  ctx.fillRect(0, 0, w, h);
+  // road surface
+  ctx.lineWidth = 26;
+  ctx.strokeStyle = '#161B22';
+  ctx.beginPath(); ctx.arc(cx, cy, Rpx, 0, Math.PI * 2); ctx.stroke();
+  // edge lines
+  ctx.lineWidth = 1.5; ctx.strokeStyle = '#2A3442';
+  ctx.beginPath(); ctx.arc(cx, cy, Rpx + 13, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx, cy, Rpx - 13, 0, Math.PI * 2); ctx.stroke();
+  // centre dashes
+  ctx.setLineDash([7, 9]); ctx.strokeStyle = '#39455644'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(cx, cy, Rpx, 0, Math.PI * 2); ctx.stroke();
+  ctx.setLineDash([]);
+  // cars
+  const vMax = sim.o.v0;
+  sim.cars.forEach((c, i) => {
+    const ang = (c.x / sim.ring) * Math.PI * 2 - Math.PI / 2;
+    const px = cx + Rpx * Math.cos(ang), py = cy + Rpx * Math.sin(ang);
+    const col = speedColor(c.v, vMax);
+    ctx.save();
+    ctx.translate(px, py);
+    ctx.rotate(ang + Math.PI / 2);
+    if (i === sim.braker){
+      ctx.shadowColor = '#FF4D5E'; ctx.shadowBlur = 16;
+      ctx.fillStyle = '#FF4D5E';
+    } else {
+      ctx.shadowColor = col; ctx.shadowBlur = 6;
+      ctx.fillStyle = col;
+    }
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(-3.5, -7, 7, 14, 2.5); else ctx.rect(-3.5, -7, 7, 14);
+    ctx.fill();
+    ctx.restore();
+  });
+  // centre readout
+  const m = sim.metrics();
+  ctx.fillStyle = '#7E8A9B';
+  ctx.font = '600 10px "IBM Plex Mono", monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('MEAN', cx, cy - 22);
+  ctx.fillStyle = speedColor(m.mean, vMax);
+  ctx.font = '700 34px "Chakra Petch", sans-serif';
+  ctx.fillText(fmtMph(m.mean), cx, cy + 12);
+  ctx.fillStyle = '#7E8A9B';
+  ctx.font = '600 10px "IBM Plex Mono", monospace';
+  ctx.fillText('MPH', cx, cy + 28);
+}
+function drawSpaceTime(){
+  const cv = $('stCanvas');
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const ctx = cv.getContext('2d');
+  const W = cv.width, H = cv.height;
+  const colW = Math.max(1, Math.round(1.6 * dpr));
+  // shift left by one column
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.drawImage(cv, colW, 0, W - colW, H, 0, 0, W - colW, H);
+  ctx.fillStyle = '#07090C';
+  ctx.fillRect(W - colW, 0, colW, H);
+  const sim = shock.sim, vMax = sim.o.v0;
+  for (const c of sim.cars){
+    const y = (1 - c.x / sim.ring) * H;
+    ctx.fillStyle = speedColor(c.v, vMax);
+    ctx.fillRect(W - colW, y - dpr, colW, 2.4 * dpr);
+  }
+}
+function shockTick(ts){
+  requestAnimationFrame(shockTick);
+  if (!$('panel-shock').classList.contains('active')) { shock.last = ts; return; }
+  if (!shock.last) shock.last = ts;
+  let dt = Math.min(0.05, (ts - shock.last) / 1000);
+  shock.last = ts;
+  if (!shock.paused){
+    shock.acc += dt * shock.speedMul;
+    const h = 0.04;
+    let guard = 0;
+    while (shock.acc >= h && guard++ < 12){
+      shock.sim.step(h);
+      shock.acc -= h;
+      shock.stTimer += h;
+      if (shock.stTimer >= 0.22){ shock.stTimer = 0; drawSpaceTime(); }
+      shock.waveTimer += h;
+      if (shock.waveTimer >= 0.4){
+        shock.waveTimer = 0;
+        shock.lastWave = shock.sim.sampleWave();
+      }
+    }
+  }
+  drawRing();
+  // readouts (throttled by frame is fine)
+  const m = shock.sim.metrics();
+  $('roMean').innerHTML = fmtMph(m.mean) + ' <small>mph</small>';
+  $('roMin').innerHTML  = fmtMph(m.min)  + ' <small>mph</small>';
+  $('roFlow').innerHTML = Math.round(m.flow) + ' <small>veh/h</small>';
+  $('roJam').textContent = m.jam;
+  const status = $('shock-status');
+  if (m.jam >= 3){ status.textContent = 'SHOCKWAVE ACTIVE'; status.style.color = 'var(--red)'; }
+  else if (m.mean < shock.sim.o.v0 * 0.55){ status.textContent = 'DENSE'; status.style.color = 'var(--amber)'; }
+  else { status.textContent = 'FREE FLOW'; status.style.color = 'var(--teal)'; }
+  if (shock.lastWave !== null && shock.lastWave < -0.5){
+    $('roWave').innerHTML = Math.abs(toMph(shock.lastWave)).toFixed(1) + ' <small>mph ←</small>';
+  } else {
+    $('roWave').textContent = '–';
+  }
+}
+$('brakeBtn').addEventListener('click', () => { shock.sim.brake(); if (reduceMotion && shock.paused){} });
+$('shockPause').addEventListener('click', e => {
+  shock.paused = !shock.paused;
+  e.target.textContent = shock.paused ? 'Resume' : 'Pause';
+});
+$('shockReset').addEventListener('click', shockInit);
+$('densSlider').addEventListener('input', e => {
+  $('densOut').textContent = e.target.value;
+  shockInit();
+});
+$('simSpeedSlider').addEventListener('input', e => {
+  shock.speedMul = +e.target.value;
+  $('simSpeedOut').textContent = (+e.target.value).toFixed(1);
+});
+
+/* ================= TAB 2 · LANES ================= */
+const lanes = { sim: null, paused: reduceMotion, last: 0, acc: 0 };
+function lanesInit(){
+  lanes.sim = new LaneSim({
+    perLane: +$('laneDensSlider').value,
+    pctAggressive: (+$('aggrSlider').value) / 100,
+    seed: (Math.random() * 1e9) | 0
+  });
+}
+function drawLanes(){
+  const { ctx, w, h } = fitCanvas($('laneCanvas'), 190);
+  const sim = lanes.sim, R = sim.road;
+  ctx.fillStyle = '#07090C'; ctx.fillRect(0, 0, w, h);
+  const roadTop = 38, laneH = 52, roadH = laneH * 2;
+  // surface
+  ctx.fillStyle = '#161B22';
+  ctx.fillRect(0, roadTop, w, roadH);
+  // edges
+  ctx.fillStyle = '#2A3442';
+  ctx.fillRect(0, roadTop - 2, w, 2);
+  ctx.fillRect(0, roadTop + roadH, w, 2);
+  // centre dashes
+  ctx.fillStyle = '#39455666';
+  for (let x = 0; x < w; x += 26) ctx.fillRect(x, roadTop + laneH - 1, 13, 2);
+  // chevrons hint of motion
+  const vMax = sim.o.v0;
+  const laneY = l => roadTop + laneH * (l + 0.5);
+  for (const c of sim.cars){
+    const px = (c.x / R) * w;
+    const py = laneY(c.y);
+    let col = speedColor(c.v, vMax);
+    let wcar = c.lorry ? 30 : 17, hcar = c.lorry ? 11 : 9, glow = c.lorry ? 3 : 5;
+    if (c.tag === 'weaver'){ col = '#FFB000'; glow = 13; wcar = 19; hcar = 10; }
+    if (c.tag === 'steady'){ col = '#E8EDF2'; glow = 13; wcar = 19; hcar = 10; }
+    ctx.save();
+    ctx.shadowColor = col; ctx.shadowBlur = glow;
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(px - wcar / 2, py - hcar / 2, wcar, hcar, 3); else ctx.rect(px - wcar / 2, py - hcar / 2, wcar, hcar);
+    ctx.fill();
+    ctx.restore();
+    if (c.tag){
+      ctx.fillStyle = col;
+      ctx.font = '600 9px "IBM Plex Mono", monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(c.tag === 'weaver' ? 'W' : 'S', px, py - hcar - 4);
+    }
+  }
+  // progress bar: who is ahead
+  const dw = sim.weaver.dist, ds = sim.steady.dist;
+  const lead = dw - ds;
+  ctx.font = '600 10px "IBM Plex Mono", monospace';
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#7E8A9B';
+  ctx.fillText('RACE DISTANCE  W: ' + (dw / 1000).toFixed(2) + ' km   S: ' + (ds / 1000).toFixed(2) + ' km', 10, h - 12);
+  ctx.textAlign = 'right';
+  ctx.fillStyle = lead >= 0 ? '#FFB000' : '#E8EDF2';
+  ctx.fillText((lead >= 0 ? 'WEAVER' : 'STEADY') + ' AHEAD BY ' + Math.abs(lead).toFixed(0) + ' m', w - 10, h - 12);
+}
+function lanesTick(ts){
+  requestAnimationFrame(lanesTick);
+  if (!$('panel-lanes').classList.contains('active')) { lanes.last = ts; return; }
+  if (!lanes.last) lanes.last = ts;
+  let dt = Math.min(0.05, (ts - lanes.last) / 1000);
+  lanes.last = ts;
+  if (!lanes.paused){
+    lanes.acc += dt;
+    const h = 0.04;
+    let guard = 0;
+    while (lanes.acc >= h && guard++ < 12){ lanes.sim.step(h); lanes.acc -= h; }
+  }
+  drawLanes();
+  const sim = lanes.sim;
+  $('roLC').textContent = sim.weaver.lcCount;
+  const leadM = sim.weaver.dist - sim.steady.dist;
+  const ref = Math.max(sim.steady.v, 3);
+  const leadS = leadM / ref;
+  $('roLead').innerHTML = (leadS >= 0 ? '+' : '−') + Math.abs(leadS).toFixed(1) + ' <small>sec</small>';
+  if (sim.steady.dist > 400){
+    const proj = leadS * (16093 / sim.steady.dist);
+    $('roGain').innerHTML = (proj >= 0 ? '+' : '−') + Math.abs(proj).toFixed(0) + ' <small>sec</small>';
+  } else $('roGain').textContent = '–';
+  $('roBrakes').textContent = sim.brakeEvents;
+  $('roLaneMean').innerHTML = fmtMph(sim.meanSpeed()) + ' <small>mph</small>';
+}
+$('lanePause').addEventListener('click', e => {
+  lanes.paused = !lanes.paused;
+  e.target.textContent = lanes.paused ? 'Resume' : 'Pause';
+});
+$('laneReset').addEventListener('click', () => { lanesInit(); $('abVerdict').classList.remove('show'); });
+$('laneDensSlider').addEventListener('input', e => { $('laneDensOut').textContent = e.target.value; lanesInit(); });
+$('aggrSlider').addEventListener('input', e => { $('aggrOut').textContent = e.target.value; lanesInit(); });
+
+/* controlled A/B: same density, 0% aggressive vs current %, headless 120 sim-seconds */
+$('abBtn').addEventListener('click', () => {
+  const perLane = +$('laneDensSlider').value;
+  const pct = (+$('aggrSlider').value) / 100;
+  const run = (p, seed) => {
+    const s = new LaneSim({ perLane, pctAggressive: p, seed });
+    const h = 0.05, warm = 30, measure = 120;
+    for (let t = 0; t < warm; t += h) s.step(h);
+    let sum = 0, k = 0;
+    for (let t = 0; t < measure; t += h){ s.step(h); sum += s.meanSpeed(); k++; }
+    return sum / k;
+  };
+  const seed = 1234567;
+  const calm = run(0, seed), aggr = run(pct, seed);
+  const tCalm = (5 * 1609.3) / calm / 60, tAggr = (5 * 1609.3) / aggr / 60;
+  const v = $('abVerdict');
+  const dSec = (tAggr - tCalm) * 60;
+  let line;
+  if (dSec > 2) {
+    line = `Network cost of the weaving: <b>+${dSec.toFixed(0)} seconds per car</b> every 5 miles, paid by everyone, including the weavers.`;
+  } else if (dSec < -2) {
+    line = `At this density the weaving run finished <b>${(-dSec).toFixed(0)} s per car quicker</b> over 5 miles. Field studies (M1 Sydney, 2023) find this only in a narrow congestion band, and it comes with more hard braking behind the weavers.`;
+  } else {
+    line = `No meaningful network difference: <b>${dSec >= 0 ? '+' : '−'}${Math.abs(dSec).toFixed(0)} s per car</b> over 5 miles. All that weaving bought roughly nothing.`;
+  }
+  v.innerHTML = `<b>Controlled test · identical traffic, 2 minutes measured</b>\n` +
+    `0% aggressive drivers → mean ${fmtMph(calm)} mph → 5 miles in ${tCalm.toFixed(1)} min\n` +
+    `${Math.round(pct * 100)}% aggressive drivers → mean ${fmtMph(aggr)} mph → 5 miles in ${tAggr.toFixed(1)} min\n` + line;
+  v.classList.add('show');
+});
+
+/* ================= TAB 3 · SPEED VS TIME ================= */
+const fuelIndex = v => ((2600 + v * v) / (2600 + 70 * 70)) * 100;  // calibrated: 80mph ≈ +20%, in line with AA's "up to 25%"
+const stopDistM = v => (v + v * v / 20) * 0.3048;                  // Highway Code: thinking + braking (ft) -> m
+
+function chartFrame(cv, cssH, pad){
+  const { ctx, w, h } = fitCanvas(cv, cssH);
+  ctx.fillStyle = '#07090C'; ctx.fillRect(0, 0, w, h);
+  return { ctx, w, h, p: pad };
+}
+function axis(ctx, p, w, h, x0, x1, y0, y1, xlab, ylab, xticks, yticks, xfmt, yfmt){
+  ctx.strokeStyle = '#222C39'; ctx.lineWidth = 1;
+  ctx.font = '400 10px "IBM Plex Mono", monospace';
+  ctx.fillStyle = '#7E8A9B';
+  const X = v => p.l + (v - x0) / (x1 - x0) * (w - p.l - p.r);
+  const Y = v => h - p.b - (v - y0) / (y1 - y0) * (h - p.t - p.b);
+  yticks.forEach(t => {
+    ctx.beginPath(); ctx.moveTo(p.l, Y(t)); ctx.lineTo(w - p.r, Y(t)); ctx.stroke();
+    ctx.textAlign = 'right'; ctx.fillText(yfmt(t), p.l - 6, Y(t) + 3);
+  });
+  xticks.forEach(t => {
+    ctx.textAlign = 'center'; ctx.fillText(xfmt(t), X(t), h - p.b + 14);
+  });
+  ctx.textAlign = 'left';
+  ctx.fillText(ylab, p.l, p.t - 8);
+  ctx.textAlign = 'right';
+  ctx.fillText(xlab, w - p.r, h - 6);
+  return { X, Y };
+}
+
+function calcUpdate(){
+  const D = Math.max(1, +$('calcDist').value || 123);
+  const A = Math.min(120, Math.max(30, +$('calcA').value || 70));
+  const B = Math.min(120, Math.max(30, +$('calcB').value || 85));
+  const mpg70 = Math.max(10, +$('calcMpg').value || 45);
+  const price = Math.max(0.5, +$('calcFuel').value || 1.42);
+  const share = (+$('cruiseSlider').value) / 100;
+  $('cruiseOut').textContent = Math.round(share * 100);
+
+  const tA = (D / A) * 60, tB = (D / B) * 60;
+  const savedPure = tA - tB;
+  const saved = savedPure * share;             // only the cruise share differs between runs
+  const litresBase = (D / mpg70) * 4.546;      // litres if whole trip at 70-equivalent burn
+  const litres = v => litresBase * fuelIndex(v) / 100;
+  const fuelPct = (fuelIndex(B) / fuelIndex(A) - 1) * 100;
+  const extraL = (litres(B) - litres(A)) * share + 0; // extra applies on cruise share
+  const extraCost = extraL * price;
+
+  $('resTA').textContent = fmtMin(tA);
+  $('resTB').textContent = fmtMin(tB);
+  $('resSaved').innerHTML = (saved >= 0 ? '' : '−') + fmtMin(Math.abs(saved)) +
+      (share < 1 ? ' <small>realistic</small>' : '');
+  $('resFuelPct').innerHTML = (fuelPct >= 0 ? '+' : '') + fuelPct.toFixed(0) + '<small>%</small>';
+  $('resCost').innerHTML = (extraCost >= 0 ? '+' : '−') + '£' + Math.abs(extraCost).toFixed(2);
+  $('resStop').innerHTML = Math.round(stopDistM(B)) + '<small> m vs ' + Math.round(stopDistM(A)) + ' m</small>';
+
+  /* ---- time chart ---- */
+  {
+    const F = chartFrame($('timeChart'), 280, 0);
+    const p = { l: 52, r: 18, t: 26, b: 34 };
+    const x0 = 50, x1 = 100;
+    const yMaxAll = (D / x0) * 60, yMin = (D / x1) * 60 * 0.92;
+    const yt = [], step = yMaxAll > 240 ? 60 : yMaxAll > 90 ? 30 : 15;
+    for (let v = Math.ceil(yMin / step) * step; v <= yMaxAll; v += step) yt.push(v);
+    const ax = axis(F.ctx, p, F.w, F.h, x0, x1, yMin, yMaxAll, 'MPH', 'MINUTES',
+      [50, 60, 70, 80, 90, 100], yt, v => v, v => v);
+    const ctx = F.ctx;
+    // shaded delta between A and B
+    const lo = Math.min(A, B), hi = Math.max(A, B);
+    if (hi > x0 && lo < x1){
+      ctx.fillStyle = 'rgba(45,212,191,0.10)';
+      ctx.beginPath();
+      ctx.moveTo(ax.X(Math.max(lo, x0)), ax.Y((D / Math.max(lo, x0)) * 60));
+      for (let v = Math.max(lo, x0); v <= Math.min(hi, x1); v += 0.5) ctx.lineTo(ax.X(v), ax.Y((D / v) * 60));
+      ctx.lineTo(ax.X(Math.min(hi, x1)), F.h - p.b);
+      ctx.lineTo(ax.X(Math.max(lo, x0)), F.h - p.b);
+      ctx.closePath(); ctx.fill();
+    }
+    // curve
+    ctx.strokeStyle = '#2DD4BF'; ctx.lineWidth = 2.5; ctx.beginPath();
+    for (let v = x0; v <= x1; v += 0.5){
+      const X = ax.X(v), Y = ax.Y((D / v) * 60);
+      v === x0 ? ctx.moveTo(X, Y) : ctx.lineTo(X, Y);
+    }
+    ctx.stroke();
+    // markers
+    [[A, '#E8EDF2', 'A'], [B, '#FFB000', 'B']].forEach(([v, col, lbl]) => {
+      if (v < x0 || v > x1) return;
+      const X = ax.X(v), Y = ax.Y((D / v) * 60);
+      ctx.fillStyle = col;
+      ctx.beginPath(); ctx.arc(X, Y, 5, 0, Math.PI * 2); ctx.fill();
+      ctx.font = '700 12px "Chakra Petch", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(lbl + ' · ' + v + ' mph · ' + fmtMin((D / v) * 60), X, Y - 12);
+    });
+  }
+
+  /* ---- fuel chart ---- */
+  {
+    const F = chartFrame($('fuelChart'), 240, 0);
+    const p = { l: 52, r: 18, t: 26, b: 34 };
+    const x0 = 50, x1 = 100, y0 = 80, y1 = Math.max(150, fuelIndex(100) + 8);
+    const ax = axis(F.ctx, p, F.w, F.h, x0, x1, y0, y1, 'MPH', 'FUEL / MILE (70=100)',
+      [50, 60, 70, 80, 90, 100], [80, 100, 120, 140, 160], v => v, v => v);
+    const ctx = F.ctx;
+    ctx.strokeStyle = '#FFB000'; ctx.lineWidth = 2.5; ctx.beginPath();
+    for (let v = x0; v <= x1; v += 0.5){
+      const X = ax.X(v), Y = ax.Y(fuelIndex(v));
+      v === x0 ? ctx.moveTo(X, Y) : ctx.lineTo(X, Y);
+    }
+    ctx.stroke();
+    ctx.setLineDash([4, 5]); ctx.strokeStyle = '#39455688';
+    ctx.beginPath(); ctx.moveTo(p.l, ax.Y(100)); ctx.lineTo(F.w - p.r, ax.Y(100)); ctx.stroke();
+    ctx.setLineDash([]);
+    [[A, '#E8EDF2'], [B, '#FFB000']].forEach(([v, col]) => {
+      if (v < x0 || v > x1) return;
+      const X = ax.X(v), Y = ax.Y(fuelIndex(v));
+      ctx.fillStyle = col;
+      ctx.beginPath(); ctx.arc(X, Y, 5, 0, Math.PI * 2); ctx.fill();
+      ctx.font = '700 12px "Chakra Petch", sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText('+' + (fuelIndex(v) - 100).toFixed(0) + '%', X, Y - 11);
+    });
+  }
+
+  /* ---- table ---- */
+  {
+    const rows = [60, 70, 75, 80, 85, 90, 95, 100];
+    if (!rows.includes(A)) rows.push(A);
+    if (!rows.includes(B)) rows.push(B);
+    rows.sort((a, b) => a - b);
+    let html = '<tr><th>Cruise</th><th>Time</th><th>vs ' + A + ' mph</th><th>Fuel/mi</th><th>Extra fuel</th><th>Extra cost</th></tr>';
+    rows.forEach(v => {
+      const t = (D / v) * 60;
+      const d = (tA - t) * share;
+      const eL = (litres(v) - litres(A)) * share;
+      const you = (v === A || v === B) ? ' class="you"' : '';
+      html += `<tr${you}><td class="hl">${v} mph</td><td>${fmtMin(t)}</td>` +
+        `<td>${d === 0 ? '–' : (d > 0 ? '−' : '+') + Math.abs(d).toFixed(1) + ' min'}</td>` +
+        `<td>${fuelIndex(v).toFixed(0)}</td>` +
+        `<td>${eL === 0 ? '–' : (eL > 0 ? '+' : '−') + Math.abs(eL).toFixed(1) + ' L'}</td>` +
+        `<td>${eL === 0 ? '–' : (eL > 0 ? '+' : '−') + '£' + Math.abs(eL * price).toFixed(2)}</td></tr>`;
+    });
+    $('cmpTable').innerHTML = html;
+  }
+
+  /* ---- insight ---- */
+  const perMin = saved > 0.2 ? (extraCost / saved) : null;
+  const note = (A <= 70 && B > 70)
+    ? ' For reference, ' + B + ' mph is above the UK motorway limit of 70, so the comparison is the cost of that choice in physics terms.'
+    : '';
+  $('speedInsight').innerHTML =
+    `Over ${D} miles, ${B} mph beats ${A} mph by <b style="color:var(--teal)">${fmtMin(Math.abs(savedPure))}</b> on paper` +
+    (share < 1 ? `, but with only ${Math.round(share * 100)}% of the route genuinely at cruise, the real saving is about <b style="color:var(--teal)">${fmtMin(Math.abs(saved))}</b>` : '') +
+    `. That costs roughly <b style="color:var(--amber)">${extraL.toFixed(1)} extra litres (£${extraCost.toFixed(2)})</b>` +
+    (perMin ? `, about £${perMin.toFixed(2)} per minute saved` : '') +
+    `, and stretches total stopping distance from ${Math.round(stopDistM(A))} m to ${Math.round(stopDistM(B))} m.` +
+    ` Note the curve: going ${A}→${Math.min(120, A + 10)} saves ${(((D / A) - (D / (A + 10))) * 60).toFixed(1)} min, but ${Math.min(110, B)}→${Math.min(120, B + 10)} only saves ${(((D / B) - (D / (B + 10))) * 60).toFixed(1)} min. Each extra 10 mph buys less.` + note;
+}
+['calcDist', 'calcA', 'calcB', 'calcMpg', 'calcFuel'].forEach(id => $(id).addEventListener('input', calcUpdate));
+$('cruiseSlider').addEventListener('input', calcUpdate);
+
+/* ================= TAB 4 · FLOW & HEADWAY ================= */
+const twin = { A: null, B: null, paused: reduceMotion, last: 0, acc: 0, nextPerturb: 12, rng: null };
+function twinInit(){
+  const seed = (Math.random() * 1e9) | 0;
+  twin.A = new RingSim({ n: 26, ring: 600, v0: 70 * MPH, seed });
+  twin.B = new RingSim({ n: 26, ring: 600, v0: 50 * MPH, seed });
+  twin.A.delivered = 0; twin.B.delivered = 0;
+  twin.rng = mulberry32(99);
+  twin.nextPerturb = 10;
+}
+function twinPerturb(){
+  const f = twin.rng();
+  for (const s of [twin.A, twin.B]){
+    const idx = Math.floor(f * s.cars.length);
+    s.cars[idx].forcedUntil = s.t + 1.5;
+    s.braker = idx; s._brakerUntil = s.t + 2.7;
+  }
+}
+function drawTwin(){
+  const { ctx, w, h } = fitCanvas($('twinCanvas'), 210);
+  ctx.fillStyle = '#07090C'; ctx.fillRect(0, 0, w, h);
+  const rows = [
+    { sim: twin.A, y: 52,  label: 'A · SIGNED 70' },
+    { sim: twin.B, y: 142, label: 'B · SIGNED 50' }
+  ];
+  for (const r of rows){
+    ctx.fillStyle = '#161B22'; ctx.fillRect(0, r.y - 16, w, 32);
+    ctx.fillStyle = '#2A3442'; ctx.fillRect(0, r.y - 18, w, 2); ctx.fillRect(0, r.y + 16, w, 2);
+    ctx.fillStyle = '#7E8A9B';
+    ctx.font = '600 10px "IBM Plex Mono", monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText(r.label, 10, r.y - 26);
+    const m = r.sim.metrics();
+    ctx.textAlign = 'right';
+    ctx.fillStyle = speedColor(m.mean, 70 * MPH);
+    ctx.fillText(fmtMph(m.mean) + ' MPH MEAN', w - 10, r.y - 26);
+    const vRef = 70 * MPH;
+    r.sim.cars.forEach((c, i) => {
+      const px = (c.x / r.sim.ring) * w;
+      const col = speedColor(c.v, vRef);
+      ctx.save();
+      if (i === r.sim.braker){ ctx.shadowColor = '#FF4D5E'; ctx.shadowBlur = 12; ctx.fillStyle = '#FF4D5E'; }
+      else { ctx.shadowColor = col; ctx.shadowBlur = 4; ctx.fillStyle = col; }
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(px - 8, r.y - 5, 16, 10, 3); else ctx.rect(px - 8, r.y - 5, 16, 10);
+      ctx.fill();
+      ctx.restore();
+    });
+  }
+}
+function twinTick(ts){
+  requestAnimationFrame(twinTick);
+  if (!$('panel-flow').classList.contains('active')) { twin.last = ts; return; }
+  if (!twin.last) twin.last = ts;
+  let dt = Math.min(0.05, (ts - twin.last) / 1000);
+  twin.last = ts;
+  if (!twin.paused){
+    twin.acc += dt;
+    const h = 0.04;
+    let guard = 0;
+    while (twin.acc >= h && guard++ < 12){
+      twin.A.step(h); twin.B.step(h);
+      twin.A.delivered += twin.A.metrics().mean * h * twin.A.cars.length;
+      twin.B.delivered += twin.B.metrics().mean * h * twin.B.cars.length;
+      twin.acc -= h;
+      if (twin.A.t >= twin.nextPerturb){ twinPerturb(); twin.nextPerturb += 15; }
+    }
+  }
+  drawTwin();
+  const mA = twin.A.metrics(), mB = twin.B.metrics();
+  $('roTwinA').innerHTML = fmtMph(mA.mean) + ' <small>mph</small>';
+  $('roTwinB').innerHTML = fmtMph(mB.mean) + ' <small>mph</small>';
+  if (twin.B.delivered > 0){
+    const ratio = (twin.A.delivered / twin.B.delivered) * 100;
+    $('roTwinD').innerHTML = ratio.toFixed(0) + '<small>% (B = 100)</small>';
+  }
+}
+$('twinPause').addEventListener('click', e => {
+  twin.paused = !twin.paused;
+  e.target.textContent = twin.paused ? 'Resume' : 'Pause';
+});
+$('twinReset').addEventListener('click', twinInit);
+
+/* ---- fundamental diagram + capacity ---- */
+function fdUpdate(){
+  const T = +$('hwSlider').value;
+  const vMph = +$('capVSlider').value;
+  $('hwOut').textContent = T.toFixed(1);
+  $('capVOut').textContent = vMph;
+  const v = vMph * MPH;                 // m/s
+  const Leff = 4.6 + 2;                 // car + standstill gap (m)
+  const cap = 3600 / (T + Leff / v);    // veh/h/lane
+  const gap = v * T;                    // m
+  $('roCap').innerHTML = Math.round(cap) + ' <small>veh/h</small>';
+  $('roGap').innerHTML = gap.toFixed(0) + ' <small>m · ' + T.toFixed(1) + 's</small>';
+  const stab = T >= 1.8 ? ['STABLE', 'var(--teal)'] : T >= 1.2 ? ['MARGINAL', 'var(--amber)'] : ['WAVE-PRONE', 'var(--red)'];
+  $('roStab').innerHTML = '<span style="color:' + stab[1] + '">' + stab[0] + '</span>';
+
+  // triangular fundamental diagram
+  const F = chartFrame($('fdChart'), 260, 0);
+  const p = { l: 56, r: 18, t: 26, b: 36 };
+  const kj = 1000 / Leff;               // jam density veh/km
+  const w_kmh = 18;                     // rearward wave speed
+  const vf_kmh = vMph * 1.609;
+  const kc = (w_kmh * kj) / (vf_kmh + w_kmh);
+  const qmax = kc * vf_kmh;
+  const ax = axis(F.ctx, p, F.w, F.h, 0, kj, 0, Math.max(2400, qmax * 1.1),
+    'DENSITY veh/km', 'FLOW veh/h', [0, 30, 60, 90, 120], [0, 600, 1200, 1800, 2400],
+    x => x, y => y);
+  const ctx = F.ctx;
+  ctx.strokeStyle = '#2DD4BF'; ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.moveTo(ax.X(0), ax.Y(0));
+  ctx.lineTo(ax.X(kc), ax.Y(qmax));
+  ctx.strokeStyle = '#2DD4BF'; ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(ax.X(kc), ax.Y(qmax));
+  ctx.lineTo(ax.X(kj), ax.Y(0));
+  ctx.strokeStyle = '#FF4D5E'; ctx.stroke();
+  // peak marker
+  ctx.fillStyle = '#FFB000';
+  ctx.beginPath(); ctx.arc(ax.X(kc), ax.Y(qmax), 5, 0, Math.PI * 2); ctx.fill();
+  ctx.font = '700 12px "Chakra Petch", sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText('PEAK ' + Math.round(qmax) + ' veh/h @ ' + kc.toFixed(0) + ' veh/km', Math.min(ax.X(kc) + 10, F.w - 190), ax.Y(qmax) - 10);
+  ctx.font = '400 10px "IBM Plex Mono", monospace';
+  ctx.fillStyle = '#2DD4BF'; ctx.textAlign = 'left';
+  ctx.fillText('FREE FLOW', ax.X(kc * 0.18), ax.Y(qmax * 0.4));
+  ctx.fillStyle = '#FF4D5E'; ctx.textAlign = 'right';
+  ctx.fillText('CONGESTED · slope = wave speed', ax.X(kj * 0.98), ax.Y(qmax * 0.45));
+}
+$('hwSlider').addEventListener('input', fdUpdate);
+$('capVSlider').addEventListener('input', fdUpdate);
+
+
+/* ================= TAB 5 · PREDICTION (data pipeline + ARIMA-family + clustering) ================= */
+const pred = { paused: reduceMotion, last: 0, acc: 0, t: 0, K: 4, Q: 0, shoulder: false, autoRec: false,
+  incidentUntil: -1, hist: [], pat: new Array(48).fill(0), patN: new Array(48).fill(0), patM2: new Array(48).fill(0),
+  ar: { a1: 0, a2: 0, sigma: 1 }, fc: [], fcT: 0, lastFit: -99, lastCluster: -99,
+  clusters: null, regime: '–', anomaly: false, oneStep: [], rng: mulberry32(2024), speedMul: 1 };
+
+const P_DAY = 144;              // 144 sim-seconds = 24h (6 s per hour)
+const P_TC = 600;               // time compression: 1 sim-second = 600 traffic-seconds
+const P_LEN = 3;                // corridor length, km
+const P_VF = 112;               // free flow km/h (≈70 mph)
+const P_W  = 18;                // congested wave speed km/h
+const P_KJL = 151;              // jam density veh/km per lane
+const P_KCL = (P_W * P_KJL) / (P_VF + P_W);   // ≈ 20.9 veh/km/lane
+const P_QMAXL = P_KCL * P_VF;                  // ≈ 2 341 veh/h/lane
+
+function pLanes(){ return pred.shoulder ? 4 : 3; }
+function pDemand(h){ // veh/h across all lanes, synthetic day with two peaks
+  const g = (m, s) => Math.exp(-((h - m) * (h - m)) / (2 * s * s));
+  return 900 + 6800 * g(8, 1.3) + 6200 * g(17.5, 1.6);
+}
+function pFD(K, lanes){ // triangular fundamental diagram, aggregate
+  const KC = P_KCL * lanes, KJ = P_KJL * lanes, QM = P_QMAXL * lanes;
+  if (K <= KC) return Math.max(0, K) * P_VF;
+  return Math.max(0, QM * (KJ - K) / (KJ - KC));
+}
+function pStep(dt){
+  const lanes = pLanes();
+  const hour = (pred.t % P_DAY) / 6;
+  let cap = 1;
+  if (pred.t < pred.incidentUntil) cap = 0.30;
+  const KC = P_KCL * lanes, KJ = P_KJL * lanes, QM = P_QMAXL * lanes * cap;
+  const exitCap = 0.84 * P_QMAXL * lanes * cap;   // downstream merge: the bottleneck that makes peaks bite
+  pred.exitCap = exitCap;
+  const lam = pDemand(hour) * (1 + (pred.rng() - 0.5) * 0.12);
+  // receiving (supply) at entry
+  const R = (pred.K < KC ? QM : Math.max(0, QM * (KJ - pred.K) / (KJ - KC)));
+  const arrivals = lam * dt * P_TC / 3600 + pred.Q;
+  const entered = Math.min(arrivals, R * dt * P_TC / 3600);
+  pred.Q = Math.max(0, arrivals - entered);
+  const out = Math.min(pFD(pred.K, lanes), exitCap) * dt * P_TC / 3600;
+  pred.K = Math.max(0.3, pred.K + (entered - out) / P_LEN);
+  pred.t += dt;
+  return { hour, lam, out };
+}
+function pSpeed(){ // km/h then mph
+  const q = Math.min(pFD(pred.K, pLanes()), pred.exitCap || 1e9);
+  const v = pred.K > 0.5 ? q / pred.K : P_VF;
+  return Math.max(4, Math.min(P_VF, v));
+}
+function pBin(t){ return Math.floor(((t % P_DAY) / P_DAY) * 48) % 48; }
+
+function pSample(){
+  const vMph = pSpeed() / 1.609;
+  const flow = pFD(pred.K, pLanes());
+  const b = pBin(pred.t);
+  // test against the stored pattern BEFORE updating it: anomalies must not teach the baseline
+  const d0 = vMph - pred.pat[b];
+  const devTh = Math.max(10, 3.0 * Math.sqrt(pred.patM2[b] || 0), 2.5 * (pred.ar.sigma || 4));
+  const isDev = Math.abs(d0) > devTh;
+  const established = pred.patN[b] >= 25;                          // a bin must learn before it can judge
+  const w = (isDev && established) ? 0.05 : 1;                     // deviant samples teach at 5% weight
+  pred.patN[b]++;
+  pred.pat[b] += w * d0 / Math.min(pred.patN[b], 60);              // online mean, windowed
+  pred.patM2[b] = (1 - 0.03 * w) * (pred.patM2[b] || 0) + 0.03 * w * d0 * d0;  // per-bin variance, EW
+  pred.hist.push({ t: pred.t, b, v: vMph, q: flow, K: pred.K });
+  if (pred.hist.length > 2600) pred.hist.shift();
+  pred.devStreak = (isDev && established) ? (pred.devStreak || 0) + 1 : 0;
+  pred.anomaly = pred.devStreak >= 3;
+  pred.lastDev = Math.abs(d0);
+  // one-step forecast skill bookkeeping
+  if (pred.fc.length && Math.abs((pred.fcT + 0.5) - pred.t) < 0.26){
+    pred.oneStep.push(Math.abs(pred.fc[0].v - vMph));
+    if (pred.oneStep.length > 280) pred.oneStep.shift();
+  }
+}
+
+/* ---- AR(2) on seasonal residuals: difference out the day pattern, fit, forecast, re-add ---- */
+function pFitAR(){
+  const H = pred.hist;
+  if (H.length < 60) return;
+  const n = Math.min(240, H.length);
+  const r = [];
+  for (let i = H.length - n; i < H.length; i++) r.push(H[i].v - pred.pat[H[i].b]);
+  // OLS for r_t = a1 r_{t-1} + a2 r_{t-2}
+  let s11 = 0, s22 = 0, s12 = 0, b1 = 0, b2 = 0;
+  for (let t = 2; t < r.length; t++){
+    s11 += r[t-1]*r[t-1]; s22 += r[t-2]*r[t-2]; s12 += r[t-1]*r[t-2];
+    b1 += r[t]*r[t-1]; b2 += r[t]*r[t-2];
+  }
+  const det = s11 * s22 - s12 * s12;
+  let a1 = 0, a2 = 0;
+  if (Math.abs(det) > 1e-6){ a1 = (b1 * s22 - b2 * s12) / det; a2 = (b2 * s11 - b1 * s12) / det; }
+  // stability clamp
+  const mag = Math.abs(a1) + Math.abs(a2);
+  if (mag > 0.98){ a1 *= 0.98 / mag; a2 *= 0.98 / mag; }
+  let sse = 0, m = 0;
+  for (let t = 2; t < r.length; t++){ const e = r[t] - a1*r[t-1] - a2*r[t-2]; sse += e*e; m++; }
+  pred.ar = { a1, a2, sigma: Math.sqrt(sse / Math.max(1, m)) };
+  // forecast 40 steps (0.5 s each = 5 sim-minutes each)
+  const fc = [];
+  let r1 = r[r.length - 1] || 0, r2 = r[r.length - 2] || 0;
+  for (let h = 1; h <= 40; h++){
+    const rh = a1 * r1 + a2 * r2;
+    r2 = r1; r1 = rh;
+    const tt = pred.t + h * 0.5;
+    const base = pred.pat[pBin(tt)];
+    fc.push({ t: tt, v: Math.max(3, base + rh), band: 1.96 * pred.ar.sigma * Math.sqrt(Math.min(h, 8)) });
+  }
+  pred.fc = fc; pred.fcT = pred.t;
+}
+
+/* ---- K-Means (k-means++ init) on rolling sensor windows; distance outliers = anomaly ---- */
+function pCluster(){
+  const H = pred.hist;
+  if (H.length < 120) return;
+  const N = Math.min(600, H.length);
+  const X = [];
+  for (let i = H.length - N; i < H.length; i++){
+    const w = H.slice(Math.max(0, i - 5), i + 1);
+    const mv = w.reduce((a, x) => a + x.v, 0) / w.length;
+    const sd = Math.sqrt(w.reduce((a, x) => a + (x.v - mv) * (x.v - mv), 0) / w.length);
+    X.push([H[i].v, H[i].q / 100, sd * 2.2]);
+  }
+  const dim = 3, k = 3;
+  const sdv = [0,1,2].map(d => {
+    const m = X.reduce((a, x) => a + x[d], 0) / X.length;
+    return Math.max(0.5, Math.sqrt(X.reduce((a, x) => a + (x[d]-m)*(x[d]-m), 0) / X.length));
+  });
+  const Z = X.map(x => x.map((v, d) => v / sdv[d]));
+  const d2 = (a, b) => { let s = 0; for (let d = 0; d < dim; d++){ const e = a[d]-b[d]; s += e*e; } return s; };
+  const rng = mulberry32(7);
+  let C = [Z[Math.floor(rng() * Z.length)]];
+  while (C.length < k){ // k-means++ seeding
+    const dists = Z.map(z => Math.min(...C.map(c => d2(z, c))));
+    const sum = dists.reduce((a, b) => a + b, 0);
+    let r = rng() * sum, pick = 0;
+    for (let i = 0; i < Z.length; i++){ r -= dists[i]; if (r <= 0){ pick = i; break; } }
+    C.push(Z[pick]);
+  }
+  let assign = new Array(Z.length).fill(0);
+  for (let it = 0; it < 12; it++){
+    for (let i = 0; i < Z.length; i++){
+      let bi = 0, bd = Infinity;
+      for (let c = 0; c < k; c++){ const dd = d2(Z[i], C[c]); if (dd < bd){ bd = dd; bi = c; } }
+      assign[i] = bi;
+    }
+    for (let c = 0; c < k; c++){
+      const mem = Z.filter((_, i) => assign[i] === c);
+      if (mem.length) C[c] = [0,1,2].map(d => mem.reduce((a, z) => a + z[d], 0) / mem.length);
+    }
+  }
+  const intra = [0,1,2].map(c => {
+    const mem = Z.filter((_, i) => assign[i] === c);
+    if (!mem.length) return 1;
+    return Math.sqrt(mem.reduce((a, z) => a + d2(z, C[c]), 0) / mem.length) || 0.4;
+  });
+  // order clusters by speed centroid (de-normalised)
+  const speedOf = c => C[c][0] * sdv[0];
+  const order = [0,1,2].sort((a, b) => speedOf(b) - speedOf(a));
+  const labels = ["Free flow", "Heavy", "Stop-start"];
+  pred.clusters = { C, sdv, intra, order, labels, pts: Z.map((z, i) => ({ v: X[i][0], q: X[i][1] * 100, c: assign[i] })) };
+  // classify current point
+  const z = Z[Z.length - 1];
+  let bi = 0, bd = Infinity;
+  for (let c = 0; c < 3; c++){ const dd = d2(z, C[c]); if (dd < bd){ bd = dd; bi = c; } }
+  pred.regime = labels[order.indexOf(bi)];
+}
+
+function predInit(){
+  pred.t = 0; pred.K = 4; pred.Q = 0; pred.hist = [];
+  pred.pat = new Array(48).fill(55); pred.patN = new Array(48).fill(0); pred.patM2 = new Array(48).fill(0); pred.devStreak = 0;
+  pred.fc = []; pred.oneStep = []; pred.clusters = null; pred.incidentUntil = -1;
+  // prewarm: three synthetic days to build the historical pattern store
+  let acc = 0;
+  for (let t = 0; t < 3 * P_DAY; t += 0.1){
+    pStep(0.1); acc += 0.1;
+    if (acc >= 0.5){ acc = 0; pSample(); }
+  }
+  pFitAR(); pCluster();
+}
+
+function pClock(){
+  const h = (pred.t % P_DAY) / 6;
+  const hh = Math.floor(h), mm = Math.floor((h - hh) * 60);
+  return String(hh).padStart(2, "0") + ":" + String(mm).padStart(2, "0");
+}
+
+function drawPredChart(){
+  const F = chartFrame($('predChart'), 250, 0);
+  const p = { l: 46, r: 14, t: 24, b: 30 };
+  const H = pred.hist;
+  if (H.length < 10) return;
+  const span = 1.5 * P_DAY;            // show last 1.5 days + forecast
+  const t0 = pred.t - span, t1 = pred.t + 22;
+  const ax = axis(F.ctx, p, F.w, F.h, t0, t1, 0, 78, 'DAY CLOCK', 'MPH',
+    [], [0, 20, 40, 60], v => '', v => v);
+  const ctx = F.ctx;
+  // hour gridlines + labels every 6h of the day
+  ctx.font = '400 9px "IBM Plex Mono", monospace'; ctx.fillStyle = '#5A6678'; ctx.textAlign = 'center';
+  for (let tt = Math.ceil(t0 / 36) * 36; tt <= t1; tt += 36){
+    const X = ax.X(tt);
+    ctx.strokeStyle = '#1B2330'; ctx.beginPath(); ctx.moveTo(X, p.t); ctx.lineTo(X, F.h - p.b); ctx.stroke();
+    ctx.fillText(String(Math.round(((tt % P_DAY) / 6)) % 24).padStart(2, '0') + ':00', X, F.h - p.b + 13);
+  }
+  // pattern baseline (the historical store)
+  ctx.strokeStyle = '#39455688'; ctx.setLineDash([3, 4]); ctx.lineWidth = 1.5; ctx.beginPath();
+  let started = false;
+  for (let tt = t0; tt <= t1; tt += 1.5){
+    const X = ax.X(tt), Y = ax.Y(pred.pat[pBin(tt)]);
+    started ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); started = true;
+  }
+  ctx.stroke(); ctx.setLineDash([]);
+  // forecast band + line
+  if (pred.fc.length){
+    ctx.fillStyle = 'rgba(255,176,0,0.13)'; ctx.beginPath();
+    pred.fc.forEach((f, i) => { const X = ax.X(f.t), Y = ax.Y(Math.min(78, f.v + f.band)); i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); });
+    for (let i = pred.fc.length - 1; i >= 0; i--){ const f = pred.fc[i]; ctx.lineTo(ax.X(f.t), ax.Y(Math.max(0, f.v - f.band))); }
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#FFB000'; ctx.lineWidth = 2; ctx.beginPath();
+    pred.fc.forEach((f, i) => { const X = ax.X(f.t), Y = ax.Y(f.v); i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); });
+    ctx.stroke();
+  }
+  // observed speed
+  ctx.strokeStyle = '#2DD4BF'; ctx.lineWidth = 2; ctx.beginPath(); started = false;
+  for (const s of H){ if (s.t < t0) continue; const X = ax.X(s.t), Y = ax.Y(s.v); started ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); started = true; }
+  ctx.stroke();
+  // now cursor
+  const Xn = ax.X(pred.t);
+  ctx.strokeStyle = '#E8EDF2'; ctx.setLineDash([2, 3]); ctx.beginPath(); ctx.moveTo(Xn, p.t); ctx.lineTo(Xn, F.h - p.b); ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle = '#E8EDF2'; ctx.font = '600 9px "IBM Plex Mono", monospace'; ctx.textAlign = 'left';
+  ctx.fillText('NOW ' + pClock(), Math.min(Xn + 5, F.w - 70), p.t + 10);
+  ctx.fillStyle = '#FFB000'; ctx.fillText('AR(2) FORECAST →', Math.min(Xn + 5, F.w - 110), p.t + 22);
+}
+
+function drawPredScatter(){
+  const F = chartFrame($('predScatter'), 210, 0);
+  const p = { l: 46, r: 14, t: 22, b: 30 };
+  const ax = axis(F.ctx, p, F.w, F.h, 0, P_QMAXL * 4 + 600, 0, 78, 'FLOW veh/h', 'MPH',
+    [0, 2000, 4000, 6000, 8000], [0, 20, 40, 60], v => v >= 1000 ? (v/1000) + 'k' : v, v => v);
+  const ctx = F.ctx;
+  if (!pred.clusters) return;
+  const cols = ['#2DD4BF', '#FFB000', '#FF4D5E'];   // free, heavy, stop-start
+  for (const pt of pred.clusters.pts){
+    const rank = pred.clusters.order.indexOf(pt.c);
+    ctx.fillStyle = cols[rank] + 'AA';
+    ctx.fillRect(ax.X(pt.q) - 1.5, ax.Y(pt.v) - 1.5, 3, 3);
+  }
+  const cur = pred.hist[pred.hist.length - 1];
+  if (cur){
+    ctx.strokeStyle = '#E8EDF2'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(ax.X(cur.q), ax.Y(cur.v), 6, 0, Math.PI * 2); ctx.stroke();
+  }
+  ctx.font = '600 9px "IBM Plex Mono", monospace'; ctx.textAlign = 'left';
+  pred.clusters.labels.forEach((l, i) => { ctx.fillStyle = cols[i]; ctx.fillText('● ' + l.toUpperCase(), p.l + 6 + i * 92, p.t + 10); });
+}
+
+function drawPredRoad(){
+  const { ctx, w, h } = fitCanvas($('predRoad'), 86);
+  ctx.fillStyle = '#07090C'; ctx.fillRect(0, 0, w, h);
+  const lanes = pLanes(), laneH = 13, top = (h - lanes * laneH) / 2;
+  const vMph = pSpeed() / 1.609;
+  const col = speedColor(vMph * MPH, 70 * MPH);
+  for (let l = 0; l < lanes; l++){
+    const y = top + l * laneH;
+    const isShoulder = pred.shoulder && l === lanes - 1;
+    ctx.fillStyle = isShoulder ? '#1C2733' : '#161B22';
+    ctx.fillRect(70, y, w - 84, laneH - 2);
+    // moving chevrons whose pace tracks speed
+    const phase = (pred.t * (vMph * 1.4)) % 34;
+    ctx.fillStyle = col;
+    for (let x = 70 + phase; x < w - 20; x += 34) ctx.fillRect(x, y + 4, 12, laneH - 10);
+    if (isShoulder){ ctx.fillStyle = '#2DD4BF'; ctx.font = '600 8px "IBM Plex Mono", monospace'; ctx.fillText('SHOULDER OPEN', 74, y + 9); }
+  }
+  // entry queue box
+  const qN = Math.round(pred.Q);
+  ctx.fillStyle = qN > 5 ? '#FF4D5E' : '#39455688';
+  ctx.fillRect(8, top, 54, lanes * laneH - 2);
+  ctx.fillStyle = '#07090C'; ctx.font = '700 11px "Chakra Petch", sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText(qN + ' Q', 35, top + lanes * laneH / 2 + 3);
+  ctx.textAlign = 'left'; ctx.fillStyle = '#7E8A9B'; ctx.font = '600 9px "IBM Plex Mono", monospace';
+  ctx.fillText('ENTRY', 12, h - 4);
+}
+
+function predTick(ts){
+  requestAnimationFrame(predTick);
+  if (!$('panel-pred').classList.contains('active')) { pred.last = ts; return; }
+  if (!pred.last) pred.last = ts;
+  let dt = Math.min(0.05, (ts - pred.last) / 1000);
+  pred.last = ts;
+  if (!pred.paused){
+    pred.acc += dt * pred.speedMul;
+    const h = 0.1; let guard = 0;
+    while (pred.acc >= h && guard++ < 24){
+      pStep(h); pred.acc -= h;
+      pred.sampleAcc = (pred.sampleAcc || 0) + h;
+      if (pred.sampleAcc >= 0.5){ pred.sampleAcc -= 0.5; pSample(); }
+    }
+    if (pred.t - pred.lastFit > 2){ pred.lastFit = pred.t; pFitAR(); }
+    if (pred.t - pred.lastCluster > 8){ pred.lastCluster = pred.t; pCluster(); }
+  }
+  drawPredRoad(); drawPredChart(); drawPredScatter();
+  // readouts
+  const vMph = pSpeed() / 1.609;
+  $('prClock').textContent = pClock();
+  $('prSpeed').innerHTML = Math.round(vMph) + ' <small>mph</small>';
+  $('prFlow').innerHTML = Math.round(pFD(pred.K, pLanes())) + ' <small>veh/h</small>';
+  $('prSamples').textContent = pred.hist.length;
+  $('prAR').textContent = 'a1=' + pred.ar.a1.toFixed(2) + ' a2=' + pred.ar.a2.toFixed(2);
+  const mae = pred.oneStep.length ? pred.oneStep.reduce((a, b) => a + b, 0) / pred.oneStep.length : null;
+  $('prMAE').innerHTML = mae === null ? '–' : mae.toFixed(1) + ' <small>mph</small>';
+  const reg = $('prRegime');
+  reg.textContent = pred.anomaly ? 'ANOMALY' : pred.regime;
+  reg.style.color = pred.anomaly ? 'var(--red)' : (pred.regime === 'Free flow' ? 'var(--teal)' : pred.regime === 'Heavy' ? 'var(--amber)' : 'var(--red)');
+  // queue warning logic from the forecast
+  const minFc = pred.fc.slice(0, 14).reduce((m, f) => Math.min(m, f.v), 99);
+  const qw = $('predQW');
+  if (vMph < 30){ qw.className = 'qw on red'; qw.innerHTML = '<b>QUEUE ACTIVE</b> · live speed under 30 mph, upstream signs set to 40 with queue-protection flashing'; }
+  else if (minFc < 30){ qw.className = 'qw on amber'; qw.innerHTML = '<b>QUEUE WARNING</b> · forecast says under 30 mph within the horizon; warning signs lit upstream to prevent secondary collisions'; }
+  else { qw.className = 'qw'; qw.innerHTML = 'No queue predicted inside the forecast horizon'; }
+  // dynamic lane recommendation from the pattern store
+  const hNow = (pred.t % P_DAY) / 6;
+  const dem1h = pDemand((hNow + 1) % 24);
+  const recEl = $('predLaneRec');
+  if (!pred.shoulder && dem1h > 0.92 * (P_QMAXL * 3)){
+    recEl.className = 'qw on teal';
+    recEl.innerHTML = '<b>PATTERN RECOMMENDATION</b> · demand within the next hour exceeds 92% of 3-lane capacity; open the shoulder lane';
+  } else if (pred.shoulder && dem1h < 0.7 * (P_QMAXL * 3)){
+    recEl.className = 'qw on teal';
+    recEl.innerHTML = '<b>PATTERN RECOMMENDATION</b> · demand has fallen; shoulder can close after the queue clears';
+  } else { recEl.className = 'qw'; recEl.textContent = 'Shoulder-lane recommendation engine watching the demand pattern'; }
+}
+
+/* ================= TAB 6 · SIGNAL TIMING (genetic algorithm + adaptive control) ================= */
+const SIG_C = 60;            // cycle, s
+const SIG_TAU = 32;          // arterial travel time between junctions, s
+const SIG_SAT = 0.5;         // saturation flow, veh/s per approach
+const SIG_LA = 1150, SIG_LX = 380, SIG_SIDE = 90;  // veh/h demands
+
+function sigPlanFixed(){ return [0,1,2,3].map(() => ({ g: 0.5, o: 0 })); }
+function mkSig(plan, seed){
+  return { t: 0, plan: plan.map(p => ({ g: p.g, o: p.o })), qA: [0,0,0,0], qX: [0,0,0,0],
+    buf: [[], [], []], arrived: 0, delay: 0, rng: mulberry32(seed), adaptive: false,
+    gSm: [0.5,0.5,0.5,0.5], snaps: [] };
+}
+function sigStep(S, dt){
+  const t = S.t;
+  // adaptive re-plan at each cycle boundary
+  if (S.adaptive && (t % SIG_C) < dt && t > 1){
+    for (let j = 0; j < 4; j++){
+      const ratio = S.qA[j] / (S.qA[j] + S.qX[j] + 0.01);
+      S.gSm[j] = 0.8 * S.gSm[j] + 0.2 * ratio;
+      S.plan[j].g = Math.max(0.25, Math.min(0.75, S.gSm[j]));
+    }
+  }
+  // arrivals (identical rng call pattern every step keeps replicas comparable)
+  for (let j = 0; j < 4; j++) S.qX[j] += SIG_LX / 3600 * dt * (1 + (S.rng() - 0.5) * 0.5);
+  S.qA[0] += SIG_LA / 3600 * dt * (1 + (S.rng() - 0.5) * 0.4);
+  S.arrived += SIG_LA / 3600 * dt + 4 * SIG_LX / 3600 * dt + 3 * SIG_SIDE / 3600 * dt;
+  for (let j = 1; j < 4; j++){
+    let inn = SIG_SIDE / 3600 * dt * (1 + (S.rng() - 0.5) * 0.5);
+    const buf = S.buf[j - 1];
+    while (buf.length && buf[0].t <= t - SIG_TAU){ inn += buf.shift().n; }
+    S.qA[j] += inn;
+  }
+  // service
+  for (let j = 0; j < 4; j++){
+    const c = ((t + S.plan[j].o) % SIG_C + SIG_C) % SIG_C;
+    const gC = S.plan[j].g * SIG_C;
+    const artGreen = c < gC;
+    const into = artGreen ? c : c - gC;          // time into current phase
+    const go = into > 1.8;                        // startup lost time
+    if (artGreen && go){
+      const dep = Math.min(S.qA[j], SIG_SAT * dt);
+      S.qA[j] -= dep;
+      if (j < 3) S.buf[j].push({ t, n: dep });
+    } else if (!artGreen && go){
+      S.qX[j] = Math.max(0, S.qX[j] - Math.min(S.qX[j], SIG_SAT * dt));
+    }
+  }
+  if (t > 60) S.delay += (S.qA[0]+S.qA[1]+S.qA[2]+S.qA[3]+S.qX[0]+S.qX[1]+S.qX[2]+S.qX[3]) * dt;
+  S.t += dt;
+}
+function sigDelayPerVeh(S){ return S.delay / Math.max(1, S.arrived - 60 * (SIG_LA + 4*SIG_LX + 3*SIG_SIDE) / 3600); }
+function sigRolling(S){
+  // rolling delay/veh over ~150 s using 1 s snapshots
+  if (!S.snaps.length || S.t - S.snaps[S.snaps.length - 1].t >= 1){
+    S.snaps.push({ t: S.t, d: S.delay, a: S.arrived });
+    if (S.snaps.length > 160) S.snaps.shift();
+  }
+  const a = S.snaps[0], b = S.snaps[S.snaps.length - 1];
+  const dv = (b.d - a.d) / Math.max(0.5, b.a - a.a);
+  return isFinite(dv) ? dv : 0;
+}
+
+/* ---- GA over [g,o] x 4 junctions ---- */
+function sigGenomePlan(g){ return [0,1,2,3].map(j => ({ g: g[j*2], o: g[j*2+1] })); }
+function sigFitness(genome){
+  const S = mkSig(sigGenomePlan(genome), 99);
+  for (let t = 0; t < 360; t += 0.25) sigStep(S, 0.25);
+  return sigDelayPerVeh(S);   // lower is better
+}
+const sigGA = { pop: [], fit: [], gen: 0, maxGen: 36, running: false, histBest: [], histMean: [], best: null, bestFit: null, fixedFit: null };
+function gaRandomGenome(rng){
+  const g = [];
+  for (let j = 0; j < 4; j++){ g.push(0.2 + rng() * 0.6); g.push(rng() * SIG_C); }
+  return g;
+}
+function gaInit(){
+  const rng = mulberry32(1234);
+  sigGA.pop = []; sigGA.histBest = []; sigGA.histMean = []; sigGA.gen = 0;
+  for (let i = 0; i < 24; i++) sigGA.pop.push(gaRandomGenome(rng));
+  // seed one member with the fixed plan as a baseline anchor
+  sigGA.pop[0] = [0.5,0, 0.5,0, 0.5,0, 0.5,0];
+  sigGA.fixedFit = sigFitness(sigGA.pop[0]);
+  sigGA.running = true; sigGA.rng = rng;
+}
+function gaGeneration(){
+  const G = sigGA, rng = G.rng;
+  G.fit = G.pop.map(sigFitness);
+  const idx = G.pop.map((_, i) => i).sort((a, b) => G.fit[a] - G.fit[b]);
+  const best = G.fit[idx[0]], mean = G.fit.reduce((a, b) => a + b, 0) / G.fit.length;
+  G.histBest.push(best); G.histMean.push(mean);
+  if (G.best === null || best < G.bestFit){ G.best = G.pop[idx[0]].slice(); G.bestFit = best; }
+  const tourney = () => {
+    let b = Math.floor(rng() * G.pop.length);
+    for (let k = 0; k < 2; k++){ const c = Math.floor(rng() * G.pop.length); if (G.fit[c] < G.fit[b]) b = c; }
+    return G.pop[b];
+  };
+  const next = [G.pop[idx[0]].slice(), G.pop[idx[1]].slice()];   // elitism
+  while (next.length < G.pop.length){
+    const a = tourney(), b = tourney(), child = [];
+    for (let i = 0; i < 8; i++){
+      const w = 0.3 + rng() * 0.4;
+      let v = a[i] * w + b[i] * (1 - w);                          // blend crossover
+      if (rng() < 0.25) v += (rng() - 0.5) * (i % 2 === 0 ? 0.14 : 12);  // mutation
+      if (i % 2 === 0) v = Math.max(0.2, Math.min(0.8, v));
+      else v = ((v % SIG_C) + SIG_C) % SIG_C;
+      child.push(v);
+    }
+    next.push(child);
+  }
+  G.pop = next; G.gen++;
+  if (G.gen >= G.maxGen){
+    G.running = false;
+    if (sig.reps) sig.reps.ga = mkSig(sigGenomePlan(G.best), 7); // apply evolved plan
+    $('gaBtn').textContent = '⚡ Re-run evolution';
+  }
+}
+
+/* ---- live replicas + view ---- */
+const sig = { paused: reduceMotion, last: 0, acc: 0, view: 'fixed', reps: null, speedMul: 1 };
+function signalsInit(){
+  sig.reps = {
+    fixed: mkSig(sigPlanFixed(), 7),
+    adapt: (() => { const S = mkSig(sigPlanFixed(), 7); S.adaptive = true; return S; })(),
+    ga: mkSig(sigGA.best ? sigGenomePlan(sigGA.best) : sigPlanFixed(), 7)
+  };
+}
+function drawSignals(){
+  const { ctx, w, h } = fitCanvas($('sigCanvas'), 220);
+  ctx.fillStyle = '#07090C'; ctx.fillRect(0, 0, w, h);
+  const S = sig.reps[sig.view];
+  const y = h * 0.62, x0 = 70, dx = (w - 140) / 3;
+  // arterial
+  ctx.fillStyle = '#161B22'; ctx.fillRect(20, y - 8, w - 40, 16);
+  for (let j = 0; j < 4; j++){
+    const x = x0 + j * dx;
+    // cross road
+    ctx.fillStyle = '#13181F'; ctx.fillRect(x - 8, 18, 16, h - 36);
+    // platoons on the link towards this junction
+    if (j > 0){
+      for (const pl of S.buf[j - 1]){
+        const f = Math.min(1, (S.t - pl.t) / SIG_TAU);
+        const px = x0 + (j - 1) * dx + f * dx;
+        const r = Math.min(7, 2 + pl.n * 9);
+        ctx.fillStyle = '#2DD4BF';
+        ctx.beginPath(); ctx.arc(px, y, r, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+    // queues: arterial bar to the left, cross bar above
+    const qa = Math.min(120, S.qA[j] * 7), qx = Math.min(70, S.qX[j] * 7);
+    ctx.fillStyle = '#FF4D5E';
+    ctx.fillRect(x - 12 - qa, y - 6, qa, 12);
+    ctx.fillStyle = '#FFB000';
+    ctx.fillRect(x - 5, y - 16 - qx, 10, qx);
+    // junction + lights
+    const c = ((S.t + S.plan[j].o) % SIG_C + SIG_C) % SIG_C;
+    const artGreen = c < S.plan[j].g * SIG_C;
+    ctx.fillStyle = '#222A36'; ctx.fillRect(x - 10, y - 10, 20, 20);
+    ctx.fillStyle = artGreen ? '#34D399' : '#FF4D5E';
+    ctx.beginPath(); ctx.arc(x, y + 16, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = artGreen ? '#FF4D5E' : '#34D399';
+    ctx.beginPath(); ctx.arc(x + 16, y, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#7E8A9B'; ctx.font = '600 9px "IBM Plex Mono", monospace'; ctx.textAlign = 'center';
+    ctx.fillText('J' + (j + 1) + ' g' + Math.round(S.plan[j].g * 100) + '% o' + Math.round(S.plan[j].o) + 's', x, h - 8);
+  }
+  ctx.textAlign = 'left'; ctx.fillStyle = '#7E8A9B'; ctx.font = '600 10px "IBM Plex Mono", monospace';
+  ctx.fillText('VIEWING: ' + sig.view.toUpperCase() + ' PLAN · red bar = arterial queue · amber = cross queue', 22, 14);
+}
+function drawGAChart(){
+  const F = chartFrame($('gaChart'), 200, 0);
+  const p = { l: 50, r: 14, t: 22, b: 30 };
+  const hb = sigGA.histBest, hm = sigGA.histMean;
+  if (!hb.length){
+    F.ctx.fillStyle = '#5A6678'; F.ctx.font = '400 11px "IBM Plex Mono", monospace'; F.ctx.textAlign = 'center';
+    F.ctx.fillText('Press EVOLVE to run the genetic algorithm', F.w / 2, F.h / 2);
+    return;
+  }
+  const ymax = Math.max(...hm, sigGA.fixedFit || 0) * 1.08;
+  const ax = axis(F.ctx, p, F.w, F.h, 0, Math.max(10, hb.length), 0, ymax, 'GENERATION', 'DELAY s/veh',
+    [0, 10, 20, 30], [0, Math.round(ymax / 2), Math.round(ymax)], v => v, v => v);
+  const ctx = F.ctx;
+  if (sigGA.fixedFit){
+    ctx.setLineDash([4, 5]); ctx.strokeStyle = '#39455688'; ctx.beginPath();
+    ctx.moveTo(p.l, ax.Y(sigGA.fixedFit)); ctx.lineTo(F.w - p.r, ax.Y(sigGA.fixedFit)); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = '#7E8A9B'; ctx.font = '400 9px "IBM Plex Mono", monospace'; ctx.textAlign = 'right';
+    ctx.fillText('FIXED PLAN', F.w - p.r - 4, ax.Y(sigGA.fixedFit) - 5);
+  }
+  const line = (data, col) => {
+    ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.beginPath();
+    data.forEach((v, i) => { const X = ax.X(i), Y = ax.Y(v); i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); });
+    ctx.stroke();
+  };
+  line(hm, '#FFB000'); line(hb, '#2DD4BF');
+  ctx.font = '600 9px "IBM Plex Mono", monospace'; ctx.textAlign = 'left';
+  ctx.fillStyle = '#2DD4BF'; ctx.fillText('BEST', p.l + 6, p.t + 10);
+  ctx.fillStyle = '#FFB000'; ctx.fillText('POPULATION MEAN', p.l + 46, p.t + 10);
+}
+function signalsTick(ts){
+  requestAnimationFrame(signalsTick);
+  if (!$('panel-signals').classList.contains('active')) { sig.last = ts; return; }
+  if (!sig.last) sig.last = ts;
+  let dt = Math.min(0.05, (ts - sig.last) / 1000);
+  sig.last = ts;
+  if (!sig.paused){
+    sig.acc += dt * sig.speedMul;
+    const h = 0.25; let guard = 0;
+    while (sig.acc >= h && guard++ < 16){
+      sigStep(sig.reps.fixed, h); sigStep(sig.reps.adapt, h); sigStep(sig.reps.ga, h);
+      sig.acc -= h;
+    }
+  }
+  if (sigGA.running){ gaGeneration(); if (sigGA.running) gaGeneration(); }
+  drawSignals(); drawGAChart();
+  const dF = sigRolling(sig.reps.fixed), dA = sigRolling(sig.reps.adapt), dG = sigRolling(sig.reps.ga);
+  $('sgFixed').innerHTML = dF.toFixed(1) + ' <small>s/veh</small>';
+  $('sgAdapt').innerHTML = dA.toFixed(1) + ' <small>s/veh</small>';
+  $('sgGA').innerHTML = (sigGA.best ? dG.toFixed(1) : '–') + (sigGA.best ? ' <small>s/veh</small>' : '');
+  $('sgGen').textContent = sigGA.running ? ('evolving · gen ' + sigGA.gen + '/' + sigGA.maxGen) : (sigGA.best ? 'plan applied' : 'not yet run');
+  $('sgImp').innerHTML = (sigGA.bestFit && sigGA.fixedFit)
+    ? Math.round(100 * (1 - sigGA.bestFit / sigGA.fixedFit)) + '<small>% vs fixed (offline)</small>' : '–';
+}
+
+/* ================= TAB 7 · NETWORK GRAPH (message passing + ETA + planning) ================= */
+const NET_NODES = { A:[60,150], B:[210,75], C:[420,75], D:[210,225], E:[420,225], F:[315,150], H:[570,150] };
+const NET_EDGES = [
+  { id:0, a:'A', b:'B', vf:112, len:0.9, lanes:3 },
+  { id:1, a:'B', b:'C', vf:112, len:0.9, lanes:3 },
+  { id:2, a:'C', b:'H', vf:112, len:0.9, lanes:3 },
+  { id:3, a:'A', b:'D', vf:72,  len:0.9, lanes:2 },
+  { id:4, a:'D', b:'E', vf:72,  len:0.9, lanes:2 },
+  { id:5, a:'E', b:'H', vf:72,  len:0.9, lanes:2 },
+  { id:6, a:'B', b:'F', vf:64,  len:0.5, lanes:1 },
+  { id:7, a:'F', b:'E', vf:64,  len:0.5, lanes:1 },
+  { id:8, a:'D', b:'F', vf:64,  len:0.5, lanes:1 },
+  { id:9, a:'F', b:'C', vf:64,  len:0.5, lanes:1 }
+];
+const NET_PATHS = [
+  { id:'M-way',   edges:[0,1,2],   col:'#2DD4BF' },
+  { id:'A-road',  edges:[3,4,5],   col:'#FFB000' },
+  { id:'Cut S',   edges:[0,6,7,5], col:'#56B0F4' },
+  { id:'Cut N',   edges:[3,8,9,2], col:'#C792EA' }
+];
+const NET_KJL = 151, NET_PKT = 8;       // veh per packet
+const net = { paused: reduceMotion, last: 0, acc: 0, t: 0, packets: [], shares: [0.7,0.2,0.05,0.05],
+  rng: mulberry32(31), spawnAcc: 0, stadAcc: 0, incidentUntil: -1, incidentEdge: 1, stadiumUntil: -1,
+  done: [], xPrev: null, preds: [], hits: 0, tries: 0, speedMul: 1 };
+
+function netSucc(e){ // successor edges actually used by some path after e
+  const out = new Set();
+  for (const p of NET_PATHS){
+    const i = p.edges.indexOf(e);
+    if (i >= 0 && i < p.edges.length - 1) out.add(p.edges[i + 1]);
+  }
+  return [...out];
+}
+const NET_SUCC = NET_EDGES.map(e => netSucc(e.id));
+
+function netCounts(){
+  const n = NET_EDGES.map(() => 0);
+  for (const pk of net.packets) n[pk.e]++;
+  return n;
+}
+function netSpeed(eid, counts){
+  const e = NET_EDGES[eid];
+  const K = (counts[eid] * NET_PKT) / (e.len * e.lanes);     // veh/km/lane
+  let v = e.vf * Math.max(0.05, 1 - Math.pow(Math.min(1, K / NET_KJL), 2));
+  if (net.t < net.incidentUntil && eid === net.incidentEdge) v *= 0.12;
+  return v;
+}
+function netETA(pathIdx, speeds){
+  let s = 0;
+  for (const eid of NET_PATHS[pathIdx].edges) s += NET_EDGES[eid].len / Math.max(3, speeds[eid]) * 3600;
+  return s;
+}
+function netStep(dt){
+  const counts = netCounts();
+  const speeds = NET_EDGES.map((e, i) => netSpeed(i, counts));
+  // route choice: logit on current ETA, smoothed
+  if (Math.floor(net.t) !== Math.floor(net.t + dt)){
+    const etas = NET_PATHS.map((_, i) => netETA(i, speeds));
+    const ex = etas.map(t => Math.exp(-t / 120));
+    const sum = ex.reduce((a, b) => a + b, 0);
+    net.shares = net.shares.map((s, i) => 0.9 * s + 0.1 * ex[i] / sum);
+  }
+  // demand: 6 200 veh/h at A, plus stadium egress at E when active
+  net.spawnAcc += 6800 / 3600 / NET_PKT * dt;
+  while (net.spawnAcc >= 1){
+    net.spawnAcc -= 1;
+    let r = net.rng(), pi = 0, acc = 0;
+    for (let i = 0; i < net.shares.length; i++){ acc += net.shares[i]; if (r <= acc){ pi = i; break; } }
+    net.packets.push({ path: pi, leg: 0, e: NET_PATHS[pi].edges[0], pos: 0, born: net.t });
+  }
+  if (net.t < net.stadiumUntil){
+    net.stadAcc += 2600 / 3600 / NET_PKT * dt;
+    while (net.stadAcc >= 1){ net.stadAcc -= 1; net.packets.push({ path: 1, leg: 2, e: 5, pos: 0, born: net.t, stad: true }); }
+  }
+  // move packets with spillback at node entries
+  const kj = NET_EDGES.map(e => Math.floor(NET_KJL * e.len * e.lanes / NET_PKT));
+  for (const pk of net.packets){
+    const e = NET_EDGES[pk.e];
+    pk.pos += speeds[pk.e] / 3600 * dt;          // km
+    if (pk.pos >= e.len){
+      const pathEdges = NET_PATHS[pk.path].edges;
+      if (pk.leg >= pathEdges.length - 1){ pk.dead = true; net.done.push(net.t); continue; }
+      const nxt = pathEdges[pk.leg + 1];
+      if (counts[nxt] < kj[nxt] * 0.93){          // room downstream: proceed
+        counts[pk.e]--; counts[nxt]++;
+        pk.leg++; pk.e = nxt; pk.pos = 0;
+      } else {                                     // blocked: wait at the stop line (spillback)
+        pk.pos = e.len;
+      }
+    }
+  }
+  net.packets = net.packets.filter(p => !p.dead);
+  while (net.done.length && net.done[0] < net.t - 60) net.done.shift();
+  net.t += dt;
+}
+
+/* ---- two rounds of neighbour message passing (the GNN core), fixed weights ---- */
+function netPredict(){
+  const counts = netCounts();
+  const x = NET_EDGES.map((e, i) => netSpeed(i, counts) / e.vf);
+  const round = (xs) => xs.map((xe, i) => {
+    const succ = NET_SUCC[i];
+    if (!succ.length) return xe;
+    let d = 0;
+    for (const u of succ){
+      const diff = xs[u] - xe;
+      d += (diff < 0 ? 0.5 : 0.12) * diff;        // congestion diffuses upstream faster than relief
+    }
+    return Math.max(0.05, Math.min(1, xe + d / succ.length));
+  });
+  let xh = round(round(x));
+  if (net.xPrev){
+    xh = xh.map((v, i) => Math.max(0.05, Math.min(1, v + 0.6 * (x[i] - net.xPrev[i]))));
+  }
+  net.xPrev = x;
+  // score earlier predictions that flagged an early warning
+  net.preds.push({ t: net.t, x: x.slice(), xh: xh.slice() });
+  while (net.preds.length && net.preds[0].t < net.t - 16){
+    const old = net.preds.shift();
+    old.x.forEach((xv, i) => {
+      if (old.xh[i] < 0.55 && xv >= 0.7){          // warned of congestion that was not yet visible
+        net.tries++;
+        if (x[i] < 0.62) net.hits++;
+      }
+    });
+    if (net.tries > 400){ net.hits = Math.round(net.hits * 0.5); net.tries = Math.round(net.tries * 0.5); }
+  }
+  return { x, xh };
+}
+
+function netInit(){
+  net.t = 0; net.packets = []; net.done = []; net.preds = []; net.hits = 0; net.tries = 0;
+  net.shares = [0.7, 0.2, 0.05, 0.05]; net.xPrev = null;
+  net.incidentUntil = -1; net.stadiumUntil = -1; net.rng = mulberry32(31); net.spawnAcc = 0; net.stadAcc = 0;
+  // prewarm so the network is populated on first view
+  for (let t = 0; t < 240; t += 0.5) netStep(0.5);
+}
+
+function drawNet(state){
+  const { ctx, w, h } = fitCanvas($('netCanvas'), 300);
+  ctx.fillStyle = '#07090C'; ctx.fillRect(0, 0, w, h);
+  const sx = w / 630, sy = h / 300;
+  const P = id => [NET_NODES[id][0] * sx + 20, NET_NODES[id][1] * sy];
+  const { x, xh } = state;
+  NET_EDGES.forEach((e, i) => {
+    const [x1, y1] = P(e.a), [x2, y2] = P(e.b);
+    // predicted state: outer halo
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = speedColor(xh[i] * 70 * MPH, 70 * MPH);
+    ctx.globalAlpha = 0.32; ctx.lineWidth = e.lanes * 4 + 9;
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    ctx.globalAlpha = 1;
+    // actual state: inner stroke
+    ctx.strokeStyle = speedColor(x[i] * 70 * MPH, 70 * MPH);
+    ctx.lineWidth = e.lanes * 3 + 2;
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    // incident marker
+    if (net.t < net.incidentUntil && i === net.incidentEdge){
+      ctx.fillStyle = '#FF4D5E'; ctx.font = '700 13px "Chakra Petch", sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText('✕ INCIDENT', (x1 + x2) / 2, (y1 + y2) / 2 - 12);
+    }
+    // queue-warning sign upstream of predicted congestion
+    if (xh[i] < 0.5 && x[i] >= 0.62){
+      ctx.fillStyle = '#FFB000'; ctx.font = '700 12px "Chakra Petch", sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText('⚠', (x1 * 0.7 + x2 * 0.3), (y1 * 0.7 + y2 * 0.3) - 9);
+    }
+  });
+  // packets
+  for (const pk of net.packets){
+    const e = NET_EDGES[pk.e];
+    const [x1, y1] = P(e.a), [x2, y2] = P(e.b);
+    const f = Math.min(1, pk.pos / e.len);
+    ctx.fillStyle = pk.stad ? '#C792EA' : '#E8EDF2';
+    ctx.globalAlpha = 0.85;
+    ctx.fillRect(x1 + (x2 - x1) * f - 1.5, y1 + (y2 - y1) * f - 1.5, 3, 3);
+    ctx.globalAlpha = 1;
+  }
+  // nodes
+  for (const id in NET_NODES){
+    const [nx, ny] = P(id);
+    ctx.fillStyle = '#222A36'; ctx.beginPath(); ctx.arc(nx, ny, 11, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#39455688'; ctx.stroke();
+    ctx.fillStyle = '#E8EDF2'; ctx.font = '700 10px "Chakra Petch", sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(id === 'A' ? 'S' : id === 'H' ? 'T' : id, nx, ny + 3.5);
+    if (net.t < net.stadiumUntil && id === 'E'){
+      ctx.fillStyle = '#C792EA'; ctx.font = '700 11px "Chakra Petch", sans-serif';
+      ctx.fillText('◆ STADIUM OUT', nx, ny + 28);
+    }
+  }
+  ctx.fillStyle = '#7E8A9B'; ctx.font = '600 9px "IBM Plex Mono", monospace'; ctx.textAlign = 'left';
+  ctx.fillText('INNER LINE = LIVE SPEED · OUTER HALO = MESSAGE-PASSING PREDICTION (+15s)', 14, 14);
+}
+
+function netTick(ts){
+  requestAnimationFrame(netTick);
+  if (!$('panel-net').classList.contains('active')) { net.last = ts; return; }
+  if (!net.last) net.last = ts;
+  let dt = Math.min(0.05, (ts - net.last) / 1000);
+  net.last = ts;
+  if (!net.paused){
+    net.acc += dt * net.speedMul;
+    const h = 0.25; let guard = 0;
+    while (net.acc >= h && guard++ < 20){ netStep(h); net.acc -= h; }
+  }
+  const state = netPredict();
+  drawNet(state);
+  // readouts
+  const counts = netCounts();
+  const speeds = NET_EDGES.map((e, i) => netSpeed(i, counts));
+  const meanX = state.x.reduce((a, b) => a + b, 0) / state.x.length;
+  $('ntMean').innerHTML = Math.round(meanX * 70) + ' <small>mph eq</small>';
+  $('ntThr').innerHTML = Math.round(net.done.length * NET_PKT * 60) + ' <small>veh/h S→T</small>';
+  $('ntHit').innerHTML = net.tries >= 5 ? Math.round(100 * net.hits / net.tries) + '<small>% (' + net.tries + ')</small>' : 'gathering';
+  // ETA panel for the two named routes, now and predicted
+  const etaNow = [0, 1].map(i => netETA(i, speeds));
+  const predSpeeds = NET_EDGES.map((e, i) => state.xh[i] * e.vf);
+  const etaPred = [0, 1].map(i => netETA(i, predSpeeds));
+  $('ntEtaM').innerHTML = Math.round(etaNow[0]) + 's <small>→ ' + Math.round(etaPred[0]) + 's pred</small>';
+  $('ntEtaA').innerHTML = Math.round(etaNow[1]) + 's <small>→ ' + Math.round(etaPred[1]) + 's pred</small>';
+  const banner = $('ntBanner');
+  if (etaPred[0] > etaPred[1] + 25){
+    banner.className = 'qw on amber';
+    banner.innerHTML = '<b>REROUTE</b> · prediction says the A-road wins by ' + Math.round(etaPred[0] - etaPred[1]) + 's before the motorway queue is even fully formed';
+  } else if (etaPred[1] > etaPred[0] + 25){
+    banner.className = 'qw on teal';
+    banner.innerHTML = '<b>STAY ON THE M-WAY</b> · predicted ' + Math.round(etaPred[1] - etaPred[0]) + 's faster than the A-road';
+  } else {
+    banner.className = 'qw';
+    banner.textContent = 'Routes within 25s of each other; no reroute worth the lane changes';
+  }
+  $('ntShares').textContent = NET_PATHS.map((p, i) => p.id + ' ' + Math.round(net.shares[i] * 100) + '%').join(' · ');
+}
+
+/* ================= TABS 5-7 · WIRING ================= */
+predInit(); signalsInit(); netInit();
+requestAnimationFrame(predTick);
+requestAnimationFrame(signalsTick);
+requestAnimationFrame(netTick);
+
+$('predIncident').addEventListener('click', () => { pred.incidentUntil = pred.t + 10; });
+$('predShoulder').addEventListener('click', (e) => {
+  pred.shoulder = !pred.shoulder;
+  e.currentTarget.textContent = pred.shoulder ? 'Close shoulder lane' : 'Open shoulder lane';
+  e.currentTarget.classList.toggle('go', pred.shoulder);
+});
+$('predPause').addEventListener('click', (e) => { pred.paused = !pred.paused; e.currentTarget.textContent = pred.paused ? 'Resume' : 'Pause'; });
+$('predReset').addEventListener('click', () => { predInit(); });
+$('predSpeedSlider').addEventListener('input', (e) => { pred.speedMul = +e.target.value; $('predSpeedOut').textContent = (+e.target.value).toFixed(1); });
+
+$('gaBtn').addEventListener('click', () => { if (!sigGA.running){ gaInit(); $('gaBtn').textContent = '⚡ Evolving…'; } });
+['fixed', 'adapt', 'ga'].forEach(v => {
+  $('sigView_' + v).addEventListener('click', () => {
+    sig.view = v;
+    ['fixed', 'adapt', 'ga'].forEach(u => $('sigView_' + u).classList.toggle('go', u === v));
+  });
+});
+$('sigView_fixed').classList.add('go');
+$('sigPause').addEventListener('click', (e) => { sig.paused = !sig.paused; e.currentTarget.textContent = sig.paused ? 'Resume' : 'Pause'; });
+$('sigReset').addEventListener('click', () => { signalsInit(); });
+
+$('ntIncident').addEventListener('click', () => { net.incidentUntil = net.t + 90; });
+$('ntStadium').addEventListener('click', () => { net.stadiumUntil = net.t + 120; });
+$('ntPause').addEventListener('click', (e) => { net.paused = !net.paused; e.currentTarget.textContent = net.paused ? 'Resume' : 'Pause'; });
+$('ntReset').addEventListener('click', () => { netInit(); });
+
+if (reduceMotion){
+  $('predPause').textContent = 'Resume';
+  $('sigPause').textContent = 'Resume';
+  $('ntPause').textContent = 'Resume';
+}
+
+/* ================= INIT ================= */
+let resizeT = null;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeT);
+  resizeT = setTimeout(() => {
+    calcUpdate(); fdUpdate();
+    const st = fitCanvas($('stCanvas'), 230);
+    st.ctx.fillStyle = '#07090C'; st.ctx.fillRect(0, 0, st.w, st.h);
+  }, 120);
+});
+if (reduceMotion){
+  $('shockPause').textContent = 'Resume';
+  $('lanePause').textContent = 'Resume';
+  $('twinPause').textContent = 'Resume';
+  document.querySelector('.live').innerHTML = '<i></i>SIM PAUSED';
+}
+shockInit();
+lanesInit();
+twinInit();
+calcUpdate();
+fdUpdate();
+requestAnimationFrame(shockTick);
+requestAnimationFrame(lanesTick);
+requestAnimationFrame(twinTick);
+</script>
+</body>
+</html>
