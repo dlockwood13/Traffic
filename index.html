@@ -141,6 +141,14 @@ footer a:hover{text-decoration:underline}
   .scene{padding:13px}
   .ctl{max-width:none}
 }
+
+/* ---- ML layer (tabs 05-07) ---- */
+.qw{margin-top:10px;padding:10px 13px;border:1px dashed #2a3543;border-radius:8px;color:var(--muted);font-size:12px;font-family:var(--font-m);letter-spacing:.02em}
+.qw.on{border-style:solid;font-weight:600}
+.qw.on.red{background:rgba(255,77,94,.08);border-color:rgba(255,77,94,.5);color:#ff8a96}
+.qw.on.amber{background:rgba(255,176,0,.08);border-color:rgba(255,176,0,.5);color:#ffc94d}
+.qw.on.teal{background:rgba(45,212,191,.08);border-color:rgba(45,212,191,.5);color:#5fe3d2}
+.qw b{color:inherit;margin-right:6px}
 </style>
 </head>
 <body>
@@ -160,6 +168,9 @@ footer a:hover{text-decoration:underline}
   <button class="tab" role="tab" aria-selected="false" data-tab="lanes">02 Lane discipline</button>
   <button class="tab" role="tab" aria-selected="false" data-tab="speed">03 Speed vs time</button>
   <button class="tab" role="tab" aria-selected="false" data-tab="flow">04 Flow &amp; headway</button>
+  <button class="tab" role="tab" aria-selected="false" data-tab="pred">05 Prediction</button>
+  <button class="tab" role="tab" aria-selected="false" data-tab="signals">06 Signal timing</button>
+  <button class="tab" role="tab" aria-selected="false" data-tab="net">07 Network graph</button>
 </nav>
 <p class="motion-note">Reduced motion is on in your system settings; simulations start paused. Use Resume to run them.</p>
 
@@ -362,6 +373,142 @@ footer a:hover{text-decoration:underline}
   </div>
 </section>
 
+<!-- ============ TAB 5 : PREDICTION ============ -->
+<section class="panel" id="panel-pred" role="tabpanel">
+  <div class="scene">
+    <h2><span class="tick">//</span> The data pipeline: ingest, match, predict</h2>
+    <p class="sub">A synthetic motorway day (24h compressed into 144 seconds) with morning and evening peaks. The pipeline below is the real one used at scale: <b>ingest</b> live detector samples, <b>match</b> them against a stored historical pattern for that time of day, then <b>predict</b> ahead with a seasonal AR(2) model, the ARIMA family's working core. The forecaster and the clustering both run live in this page on the sim's own sensor feed; nothing is pre-baked.</p>
+
+    <div class="canvas-frame">
+      <span class="frame-label">CORRIDOR · 3 LANES · DAY CLOCK <b id="prClock">–</b></span>
+      <canvas id="predRoad" height="86" aria-label="Corridor live view"></canvas>
+    </div>
+
+    <div class="controls">
+      <div class="btnrow">
+        <button class="btn brake" id="predIncident">⚠ Incident (10s)</button>
+        <button class="btn" id="predShoulder">Open shoulder lane</button>
+        <button class="btn" id="predPause">Pause</button>
+        <button class="btn" id="predReset">Reset</button>
+      </div>
+      <div class="ctl">
+        <label>Sim speed · <output id="predSpeedOut">1.0</output>×</label>
+        <input type="range" id="predSpeedSlider" min="0.5" max="6" value="1" step="0.5">
+      </div>
+    </div>
+
+    <div class="readouts">
+      <div class="ro"><div class="k">Live speed</div><div class="v teal" id="prSpeed">–</div></div>
+      <div class="ro"><div class="k">Flow</div><div class="v" id="prFlow">–</div></div>
+      <div class="ro a"><div class="k">Regime (K-Means)</div><div class="v" id="prRegime">–</div></div>
+      <div class="ro"><div class="k">Samples ingested</div><div class="v" id="prSamples">–</div></div>
+      <div class="ro a"><div class="k">AR(2) fit</div><div class="v" id="prAR" style="font-size:15px">–</div></div>
+      <div class="ro"><div class="k">1-step forecast MAE</div><div class="v" id="prMAE">–</div></div>
+    </div>
+
+    <div id="predQW" class="qw">–</div>
+    <div id="predLaneRec" class="qw">–</div>
+  </div>
+
+  <div class="scene">
+    <h2><span class="tick">//</span> Forecast against the pattern store</h2>
+    <p class="sub">Teal is the observed feed. The dashed grey line is the learned time-of-day pattern (48 half-hour bins, built from previous days). Amber is the live forecast: pattern plus an AR(2) model fitted to the residuals every two seconds, with a 95% band that widens with horizon. Trigger an incident and watch the observation fall out of the band, the regime chip flip to ANOMALY, and the forecast chase the new reality.</p>
+    <div class="matrix-frame">
+      <span class="frame-label">SPEED · OBSERVED vs PATTERN vs FORECAST</span>
+      <canvas id="predChart" height="250" aria-label="Forecast chart"></canvas>
+    </div>
+    <div style="height:12px"></div>
+    <div class="canvas-frame">
+      <span class="frame-label">TRAFFIC REGIMES · K-MEANS ON (SPEED, FLOW, VARIABILITY) · LIVE POINT CIRCLED</span>
+      <canvas id="predScatter" height="210" aria-label="Cluster scatter"></canvas>
+    </div>
+    <div class="insight"><b>What the research says</b>
+      This is the published Google Maps recipe: aggregate live location pings, merge with a database of historical patterns for that road at that time, then let the model produce ETAs and forecasts. Short-term traffic forecasting has leaned on the ARIMA family since the Box-Jenkins era because seasonal differencing strips out the rush-hour cycle and leaves a learnable residual; the surveys in the references map forty years of that literature. Clustering (K-Means here, DBSCAN in much of the literature) turns the raw feed into a small set of named regimes, while the anomaly flag trips when the live feed breaks from the stored time-of-day pattern beyond the forecast band for several samples running, which is exactly what an incident looks like to a pattern store. The shoulder-lane recommendation is the dynamic lane management play: capacity follows the demand pattern instead of waiting for the queue.
+    </div>
+  </div>
+</section>
+
+<!-- ============ TAB 6 : SIGNAL TIMING ============ -->
+<section class="panel" id="panel-signals" role="tabpanel">
+  <div class="scene">
+    <h2><span class="tick">//</span> Evolving a green wave</h2>
+    <p class="sub">An arterial with four signalled junctions and cross traffic. Three controllers run in parallel on <em>identical</em> arrivals: a <b>fixed</b> 50/50 plan, an <b>adaptive</b> controller that re-splits green time each cycle from live queues, and a <b>genetic algorithm</b> that breeds whole timing plans (green split + offset per junction), scoring each chromosome by simulated total delay. Offsets matter because platoons take 32 seconds between junctions: the GA has to discover the green wave, nobody tells it one exists.</p>
+
+    <div class="canvas-frame">
+      <span class="frame-label">ARTERIAL · 4 JUNCTIONS · IDENTICAL DEMAND PER CONTROLLER</span>
+      <canvas id="sigCanvas" height="220" aria-label="Signal corridor"></canvas>
+    </div>
+
+    <div class="controls">
+      <div class="btnrow">
+        <button class="btn go" id="gaBtn">⚡ Evolve plan (GA)</button>
+        <button class="btn" id="sigView_fixed">View: Fixed</button>
+        <button class="btn" id="sigView_adapt">View: Adaptive</button>
+        <button class="btn" id="sigView_ga">View: GA</button>
+        <button class="btn" id="sigPause">Pause</button>
+        <button class="btn" id="sigReset">Reset</button>
+      </div>
+    </div>
+
+    <div class="readouts">
+      <div class="ro"><div class="k">Fixed plan delay</div><div class="v" id="sgFixed">–</div></div>
+      <div class="ro"><div class="k">Adaptive delay</div><div class="v" id="sgAdapt">–</div></div>
+      <div class="ro a"><div class="k">GA plan delay</div><div class="v teal" id="sgGA">–</div></div>
+      <div class="ro a"><div class="k">GA status</div><div class="v" id="sgGen" style="font-size:15px">not yet run</div></div>
+      <div class="ro"><div class="k">Offline improvement</div><div class="v amber" id="sgImp">–</div></div>
+    </div>
+  </div>
+
+  <div class="scene">
+    <h2><span class="tick">//</span> Fitness over generations</h2>
+    <p class="sub">Population of 24 timing plans, tournament selection, blend crossover, gaussian mutation, two elites carried over. Each generation evaluates every chromosome with a full 6-minute headless simulation. Watch the best line fall below the fixed-plan baseline within a handful of generations, then plateau as the green wave locks in.</p>
+    <div class="canvas-frame">
+      <span class="frame-label">GENETIC ALGORITHM · DELAY PER VEHICLE, LOWER IS BETTER</span>
+      <canvas id="gaChart" height="200" aria-label="GA fitness chart"></canvas>
+    </div>
+    <div class="insight"><b>What the research says</b>
+      Evolutionary search is the standard answer when the timing space is too big to enumerate: even this toy corridor has an effectively continuous space of splits and offsets per junction, and city grids multiply that into the billions. GA approaches to signal timing repeatedly find double-digit delay reductions against fixed plans by discovering coordination (offsets) humans would tune by hand. The adaptive controller alongside it is the SCOOT/SCATS idea in miniature: measure queues, re-split greens every cycle. Adaptive wins when demand shifts, the GA wins when coordination matters; real deployments layer both, which is what active traffic management means in practice.
+    </div>
+  </div>
+</section>
+
+<!-- ============ TAB 7 : NETWORK GRAPH ============ -->
+<section class="panel" id="panel-net" role="tabpanel">
+  <div class="scene">
+    <h2><span class="tick">//</span> The network as a graph: prediction by message passing</h2>
+    <p class="sub">Junctions as nodes, road segments as edges, exactly how graph neural networks see a city. Traffic flows S→T over a motorway, an A-road and two cut-throughs, with route choice responding to live ETAs and real spillback between edges. Every second the page runs <b>two rounds of neighbour message passing</b> on the line graph, the core GNN operation: each edge updates its expectation from the state of the edges its traffic feeds into, because congestion physically propagates backwards along exactly those connections. The halo around each edge is that 15-second-ahead prediction; the inner line is live truth. Honesty note: the message-passing structure is real and the weights are hand-set; a production GNN learns them from millions of trajectories.</p>
+
+    <div class="canvas-frame">
+      <span class="frame-label">S→T NETWORK · LIVE + PREDICTED STATE · ⚠ = QUEUE WARNING SIGN</span>
+      <canvas id="netCanvas" height="300" aria-label="Network graph"></canvas>
+    </div>
+
+    <div class="controls">
+      <div class="btnrow">
+        <button class="btn brake" id="ntIncident">⚠ Crash on the M-way (90s sim)</button>
+        <button class="btn" id="ntStadium">◆ Stadium turns out (120s sim)</button>
+        <button class="btn" id="ntPause">Pause</button>
+        <button class="btn" id="ntReset">Reset</button>
+      </div>
+    </div>
+
+    <div class="readouts">
+      <div class="ro"><div class="k">Network mean speed</div><div class="v teal" id="ntMean">–</div></div>
+      <div class="ro"><div class="k">Throughput</div><div class="v" id="ntThr">–</div></div>
+      <div class="ro a"><div class="k">M-way ETA</div><div class="v" id="ntEtaM">–</div></div>
+      <div class="ro a"><div class="k">A-road ETA</div><div class="v" id="ntEtaA">–</div></div>
+      <div class="ro"><div class="k">Early-warning hit rate</div><div class="v amber" id="ntHit">–</div></div>
+    </div>
+
+    <div id="ntBanner" class="qw">–</div>
+    <p class="sub" style="margin-top:10px;font-size:12px">Route shares (logit on live ETA): <b id="ntShares">–</b></p>
+
+    <div class="insight"><b>What the research says</b>
+      Google's DeepMind collaboration moved Maps ETAs onto graph neural networks precisely because the road network's structure <em>is</em> the prediction problem: a crash on one highway changes arrival times on parallel routes it never touches, and only a model that sees the graph can anticipate that. Recent work (including the 2025 Nature Scientific Reports line of GNN traffic predictors) keeps extending the same skeleton: spatial dependency from the adjacency, temporal dependency from each edge's history, both of which this demo carries in miniature. The stadium button is the planning use case: simulate the development against historical patterns before pouring concrete, which is what tools like PTV Vissim sell to highway authorities. The ⚠ markers are queue-warning systems doing their actual job, telling drivers about a jam the model can see forming before they can, which is how secondary collisions get prevented.
+    </div>
+  </div>
+</section>
+
 <footer>
   <h3>Models &amp; sources</h3>
   <ul>
@@ -370,6 +517,8 @@ footer a:hover{text-decoration:underline}
     <li>He et al. (2023), <i>Communications in Transportation Research</i>: M1 Sydney trajectories; lane changing gives no significant individual speed benefit in most regimes.</li>
     <li>Arman &amp; Tampère (2024), <i>Transportation Research Record</i>: concentrated lane changing is the main contributor to speed drop in weaving areas.</li>
     <li>AA / RAC fuel guidance: 80 mph can use up to 25% more fuel than 70 mph; 70 uses ~9% more than 60. Highway Code stopping distances.</li>
+    <li>Prediction layer: Box-Jenkins / ARIMA-family short-term forecasting (Vlahogianni et al. survey lineage) · K-Means / DBSCAN regime clustering and anomaly flagging · the Google Maps ingestion-to-prediction pipeline and the DeepMind GNN ETA work · Nature Scientific Reports (2025) GNN traffic prediction.</li>
+    <li>Control layer: genetic-algorithm signal timing · SCOOT/SCATS-style adaptive control · active traffic management (dynamic lane opening, queue-warning systems) · PTV-style simulation for testing infrastructure before it is built.</li>
     <li>All simulations run live in this page. Parameters are realistic but simplified; treat outputs as illustrative physics, not forecasts.</li>
   </ul>
 </footer>
@@ -1246,6 +1395,831 @@ function fdUpdate(){
 }
 $('hwSlider').addEventListener('input', fdUpdate);
 $('capVSlider').addEventListener('input', fdUpdate);
+
+
+/* ================= TAB 5 · PREDICTION (data pipeline + ARIMA-family + clustering) ================= */
+const pred = { paused: reduceMotion, last: 0, acc: 0, t: 0, K: 4, Q: 0, shoulder: false, autoRec: false,
+  incidentUntil: -1, hist: [], pat: new Array(48).fill(0), patN: new Array(48).fill(0), patM2: new Array(48).fill(0),
+  ar: { a1: 0, a2: 0, sigma: 1 }, fc: [], fcT: 0, lastFit: -99, lastCluster: -99,
+  clusters: null, regime: '–', anomaly: false, oneStep: [], rng: mulberry32(2024), speedMul: 1 };
+
+const P_DAY = 144;              // 144 sim-seconds = 24h (6 s per hour)
+const P_TC = 600;               // time compression: 1 sim-second = 600 traffic-seconds
+const P_LEN = 3;                // corridor length, km
+const P_VF = 112;               // free flow km/h (≈70 mph)
+const P_W  = 18;                // congested wave speed km/h
+const P_KJL = 151;              // jam density veh/km per lane
+const P_KCL = (P_W * P_KJL) / (P_VF + P_W);   // ≈ 20.9 veh/km/lane
+const P_QMAXL = P_KCL * P_VF;                  // ≈ 2 341 veh/h/lane
+
+function pLanes(){ return pred.shoulder ? 4 : 3; }
+function pDemand(h){ // veh/h across all lanes, synthetic day with two peaks
+  const g = (m, s) => Math.exp(-((h - m) * (h - m)) / (2 * s * s));
+  return 900 + 6800 * g(8, 1.3) + 6200 * g(17.5, 1.6);
+}
+function pFD(K, lanes){ // triangular fundamental diagram, aggregate
+  const KC = P_KCL * lanes, KJ = P_KJL * lanes, QM = P_QMAXL * lanes;
+  if (K <= KC) return Math.max(0, K) * P_VF;
+  return Math.max(0, QM * (KJ - K) / (KJ - KC));
+}
+function pStep(dt){
+  const lanes = pLanes();
+  const hour = (pred.t % P_DAY) / 6;
+  let cap = 1;
+  if (pred.t < pred.incidentUntil) cap = 0.30;
+  const KC = P_KCL * lanes, KJ = P_KJL * lanes, QM = P_QMAXL * lanes * cap;
+  const exitCap = 0.84 * P_QMAXL * lanes * cap;   // downstream merge: the bottleneck that makes peaks bite
+  pred.exitCap = exitCap;
+  const lam = pDemand(hour) * (1 + (pred.rng() - 0.5) * 0.12);
+  // receiving (supply) at entry
+  const R = (pred.K < KC ? QM : Math.max(0, QM * (KJ - pred.K) / (KJ - KC)));
+  const arrivals = lam * dt * P_TC / 3600 + pred.Q;
+  const entered = Math.min(arrivals, R * dt * P_TC / 3600);
+  pred.Q = Math.max(0, arrivals - entered);
+  const out = Math.min(pFD(pred.K, lanes), exitCap) * dt * P_TC / 3600;
+  pred.K = Math.max(0.3, pred.K + (entered - out) / P_LEN);
+  pred.t += dt;
+  return { hour, lam, out };
+}
+function pSpeed(){ // km/h then mph
+  const q = Math.min(pFD(pred.K, pLanes()), pred.exitCap || 1e9);
+  const v = pred.K > 0.5 ? q / pred.K : P_VF;
+  return Math.max(4, Math.min(P_VF, v));
+}
+function pBin(t){ return Math.floor(((t % P_DAY) / P_DAY) * 48) % 48; }
+
+function pSample(){
+  const vMph = pSpeed() / 1.609;
+  const flow = pFD(pred.K, pLanes());
+  const b = pBin(pred.t);
+  // test against the stored pattern BEFORE updating it: anomalies must not teach the baseline
+  const d0 = vMph - pred.pat[b];
+  const devTh = Math.max(10, 3.0 * Math.sqrt(pred.patM2[b] || 0), 2.5 * (pred.ar.sigma || 4));
+  const isDev = Math.abs(d0) > devTh;
+  const established = pred.patN[b] >= 25;                          // a bin must learn before it can judge
+  const w = (isDev && established) ? 0.05 : 1;                     // deviant samples teach at 5% weight
+  pred.patN[b]++;
+  pred.pat[b] += w * d0 / Math.min(pred.patN[b], 60);              // online mean, windowed
+  pred.patM2[b] = (1 - 0.03 * w) * (pred.patM2[b] || 0) + 0.03 * w * d0 * d0;  // per-bin variance, EW
+  pred.hist.push({ t: pred.t, b, v: vMph, q: flow, K: pred.K });
+  if (pred.hist.length > 2600) pred.hist.shift();
+  pred.devStreak = (isDev && established) ? (pred.devStreak || 0) + 1 : 0;
+  pred.anomaly = pred.devStreak >= 3;
+  pred.lastDev = Math.abs(d0);
+  // one-step forecast skill bookkeeping
+  if (pred.fc.length && Math.abs((pred.fcT + 0.5) - pred.t) < 0.26){
+    pred.oneStep.push(Math.abs(pred.fc[0].v - vMph));
+    if (pred.oneStep.length > 280) pred.oneStep.shift();
+  }
+}
+
+/* ---- AR(2) on seasonal residuals: difference out the day pattern, fit, forecast, re-add ---- */
+function pFitAR(){
+  const H = pred.hist;
+  if (H.length < 60) return;
+  const n = Math.min(240, H.length);
+  const r = [];
+  for (let i = H.length - n; i < H.length; i++) r.push(H[i].v - pred.pat[H[i].b]);
+  // OLS for r_t = a1 r_{t-1} + a2 r_{t-2}
+  let s11 = 0, s22 = 0, s12 = 0, b1 = 0, b2 = 0;
+  for (let t = 2; t < r.length; t++){
+    s11 += r[t-1]*r[t-1]; s22 += r[t-2]*r[t-2]; s12 += r[t-1]*r[t-2];
+    b1 += r[t]*r[t-1]; b2 += r[t]*r[t-2];
+  }
+  const det = s11 * s22 - s12 * s12;
+  let a1 = 0, a2 = 0;
+  if (Math.abs(det) > 1e-6){ a1 = (b1 * s22 - b2 * s12) / det; a2 = (b2 * s11 - b1 * s12) / det; }
+  // stability clamp
+  const mag = Math.abs(a1) + Math.abs(a2);
+  if (mag > 0.98){ a1 *= 0.98 / mag; a2 *= 0.98 / mag; }
+  let sse = 0, m = 0;
+  for (let t = 2; t < r.length; t++){ const e = r[t] - a1*r[t-1] - a2*r[t-2]; sse += e*e; m++; }
+  pred.ar = { a1, a2, sigma: Math.sqrt(sse / Math.max(1, m)) };
+  // forecast 40 steps (0.5 s each = 5 sim-minutes each)
+  const fc = [];
+  let r1 = r[r.length - 1] || 0, r2 = r[r.length - 2] || 0;
+  for (let h = 1; h <= 40; h++){
+    const rh = a1 * r1 + a2 * r2;
+    r2 = r1; r1 = rh;
+    const tt = pred.t + h * 0.5;
+    const base = pred.pat[pBin(tt)];
+    fc.push({ t: tt, v: Math.max(3, base + rh), band: 1.96 * pred.ar.sigma * Math.sqrt(Math.min(h, 8)) });
+  }
+  pred.fc = fc; pred.fcT = pred.t;
+}
+
+/* ---- K-Means (k-means++ init) on rolling sensor windows; distance outliers = anomaly ---- */
+function pCluster(){
+  const H = pred.hist;
+  if (H.length < 120) return;
+  const N = Math.min(600, H.length);
+  const X = [];
+  for (let i = H.length - N; i < H.length; i++){
+    const w = H.slice(Math.max(0, i - 5), i + 1);
+    const mv = w.reduce((a, x) => a + x.v, 0) / w.length;
+    const sd = Math.sqrt(w.reduce((a, x) => a + (x.v - mv) * (x.v - mv), 0) / w.length);
+    X.push([H[i].v, H[i].q / 100, sd * 2.2]);
+  }
+  const dim = 3, k = 3;
+  const sdv = [0,1,2].map(d => {
+    const m = X.reduce((a, x) => a + x[d], 0) / X.length;
+    return Math.max(0.5, Math.sqrt(X.reduce((a, x) => a + (x[d]-m)*(x[d]-m), 0) / X.length));
+  });
+  const Z = X.map(x => x.map((v, d) => v / sdv[d]));
+  const d2 = (a, b) => { let s = 0; for (let d = 0; d < dim; d++){ const e = a[d]-b[d]; s += e*e; } return s; };
+  const rng = mulberry32(7);
+  let C = [Z[Math.floor(rng() * Z.length)]];
+  while (C.length < k){ // k-means++ seeding
+    const dists = Z.map(z => Math.min(...C.map(c => d2(z, c))));
+    const sum = dists.reduce((a, b) => a + b, 0);
+    let r = rng() * sum, pick = 0;
+    for (let i = 0; i < Z.length; i++){ r -= dists[i]; if (r <= 0){ pick = i; break; } }
+    C.push(Z[pick]);
+  }
+  let assign = new Array(Z.length).fill(0);
+  for (let it = 0; it < 12; it++){
+    for (let i = 0; i < Z.length; i++){
+      let bi = 0, bd = Infinity;
+      for (let c = 0; c < k; c++){ const dd = d2(Z[i], C[c]); if (dd < bd){ bd = dd; bi = c; } }
+      assign[i] = bi;
+    }
+    for (let c = 0; c < k; c++){
+      const mem = Z.filter((_, i) => assign[i] === c);
+      if (mem.length) C[c] = [0,1,2].map(d => mem.reduce((a, z) => a + z[d], 0) / mem.length);
+    }
+  }
+  const intra = [0,1,2].map(c => {
+    const mem = Z.filter((_, i) => assign[i] === c);
+    if (!mem.length) return 1;
+    return Math.sqrt(mem.reduce((a, z) => a + d2(z, C[c]), 0) / mem.length) || 0.4;
+  });
+  // order clusters by speed centroid (de-normalised)
+  const speedOf = c => C[c][0] * sdv[0];
+  const order = [0,1,2].sort((a, b) => speedOf(b) - speedOf(a));
+  const labels = ["Free flow", "Heavy", "Stop-start"];
+  pred.clusters = { C, sdv, intra, order, labels, pts: Z.map((z, i) => ({ v: X[i][0], q: X[i][1] * 100, c: assign[i] })) };
+  // classify current point
+  const z = Z[Z.length - 1];
+  let bi = 0, bd = Infinity;
+  for (let c = 0; c < 3; c++){ const dd = d2(z, C[c]); if (dd < bd){ bd = dd; bi = c; } }
+  pred.regime = labels[order.indexOf(bi)];
+}
+
+function predInit(){
+  pred.t = 0; pred.K = 4; pred.Q = 0; pred.hist = [];
+  pred.pat = new Array(48).fill(55); pred.patN = new Array(48).fill(0); pred.patM2 = new Array(48).fill(0); pred.devStreak = 0;
+  pred.fc = []; pred.oneStep = []; pred.clusters = null; pred.incidentUntil = -1;
+  // prewarm: three synthetic days to build the historical pattern store
+  let acc = 0;
+  for (let t = 0; t < 3 * P_DAY; t += 0.1){
+    pStep(0.1); acc += 0.1;
+    if (acc >= 0.5){ acc = 0; pSample(); }
+  }
+  pFitAR(); pCluster();
+}
+
+function pClock(){
+  const h = (pred.t % P_DAY) / 6;
+  const hh = Math.floor(h), mm = Math.floor((h - hh) * 60);
+  return String(hh).padStart(2, "0") + ":" + String(mm).padStart(2, "0");
+}
+
+function drawPredChart(){
+  const F = chartFrame($('predChart'), 250, 0);
+  const p = { l: 46, r: 14, t: 24, b: 30 };
+  const H = pred.hist;
+  if (H.length < 10) return;
+  const span = 1.5 * P_DAY;            // show last 1.5 days + forecast
+  const t0 = pred.t - span, t1 = pred.t + 22;
+  const ax = axis(F.ctx, p, F.w, F.h, t0, t1, 0, 78, 'DAY CLOCK', 'MPH',
+    [], [0, 20, 40, 60], v => '', v => v);
+  const ctx = F.ctx;
+  // hour gridlines + labels every 6h of the day
+  ctx.font = '400 9px "IBM Plex Mono", monospace'; ctx.fillStyle = '#5A6678'; ctx.textAlign = 'center';
+  for (let tt = Math.ceil(t0 / 36) * 36; tt <= t1; tt += 36){
+    const X = ax.X(tt);
+    ctx.strokeStyle = '#1B2330'; ctx.beginPath(); ctx.moveTo(X, p.t); ctx.lineTo(X, F.h - p.b); ctx.stroke();
+    ctx.fillText(String(Math.round(((tt % P_DAY) / 6)) % 24).padStart(2, '0') + ':00', X, F.h - p.b + 13);
+  }
+  // pattern baseline (the historical store)
+  ctx.strokeStyle = '#39455688'; ctx.setLineDash([3, 4]); ctx.lineWidth = 1.5; ctx.beginPath();
+  let started = false;
+  for (let tt = t0; tt <= t1; tt += 1.5){
+    const X = ax.X(tt), Y = ax.Y(pred.pat[pBin(tt)]);
+    started ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); started = true;
+  }
+  ctx.stroke(); ctx.setLineDash([]);
+  // forecast band + line
+  if (pred.fc.length){
+    ctx.fillStyle = 'rgba(255,176,0,0.13)'; ctx.beginPath();
+    pred.fc.forEach((f, i) => { const X = ax.X(f.t), Y = ax.Y(Math.min(78, f.v + f.band)); i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); });
+    for (let i = pred.fc.length - 1; i >= 0; i--){ const f = pred.fc[i]; ctx.lineTo(ax.X(f.t), ax.Y(Math.max(0, f.v - f.band))); }
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#FFB000'; ctx.lineWidth = 2; ctx.beginPath();
+    pred.fc.forEach((f, i) => { const X = ax.X(f.t), Y = ax.Y(f.v); i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); });
+    ctx.stroke();
+  }
+  // observed speed
+  ctx.strokeStyle = '#2DD4BF'; ctx.lineWidth = 2; ctx.beginPath(); started = false;
+  for (const s of H){ if (s.t < t0) continue; const X = ax.X(s.t), Y = ax.Y(s.v); started ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); started = true; }
+  ctx.stroke();
+  // now cursor
+  const Xn = ax.X(pred.t);
+  ctx.strokeStyle = '#E8EDF2'; ctx.setLineDash([2, 3]); ctx.beginPath(); ctx.moveTo(Xn, p.t); ctx.lineTo(Xn, F.h - p.b); ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle = '#E8EDF2'; ctx.font = '600 9px "IBM Plex Mono", monospace'; ctx.textAlign = 'left';
+  ctx.fillText('NOW ' + pClock(), Math.min(Xn + 5, F.w - 70), p.t + 10);
+  ctx.fillStyle = '#FFB000'; ctx.fillText('AR(2) FORECAST →', Math.min(Xn + 5, F.w - 110), p.t + 22);
+}
+
+function drawPredScatter(){
+  const F = chartFrame($('predScatter'), 210, 0);
+  const p = { l: 46, r: 14, t: 22, b: 30 };
+  const ax = axis(F.ctx, p, F.w, F.h, 0, P_QMAXL * 4 + 600, 0, 78, 'FLOW veh/h', 'MPH',
+    [0, 2000, 4000, 6000, 8000], [0, 20, 40, 60], v => v >= 1000 ? (v/1000) + 'k' : v, v => v);
+  const ctx = F.ctx;
+  if (!pred.clusters) return;
+  const cols = ['#2DD4BF', '#FFB000', '#FF4D5E'];   // free, heavy, stop-start
+  for (const pt of pred.clusters.pts){
+    const rank = pred.clusters.order.indexOf(pt.c);
+    ctx.fillStyle = cols[rank] + 'AA';
+    ctx.fillRect(ax.X(pt.q) - 1.5, ax.Y(pt.v) - 1.5, 3, 3);
+  }
+  const cur = pred.hist[pred.hist.length - 1];
+  if (cur){
+    ctx.strokeStyle = '#E8EDF2'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(ax.X(cur.q), ax.Y(cur.v), 6, 0, Math.PI * 2); ctx.stroke();
+  }
+  ctx.font = '600 9px "IBM Plex Mono", monospace'; ctx.textAlign = 'left';
+  pred.clusters.labels.forEach((l, i) => { ctx.fillStyle = cols[i]; ctx.fillText('● ' + l.toUpperCase(), p.l + 6 + i * 92, p.t + 10); });
+}
+
+function drawPredRoad(){
+  const { ctx, w, h } = fitCanvas($('predRoad'), 86);
+  ctx.fillStyle = '#07090C'; ctx.fillRect(0, 0, w, h);
+  const lanes = pLanes(), laneH = 13, top = (h - lanes * laneH) / 2;
+  const vMph = pSpeed() / 1.609;
+  const col = speedColor(vMph * MPH, 70 * MPH);
+  for (let l = 0; l < lanes; l++){
+    const y = top + l * laneH;
+    const isShoulder = pred.shoulder && l === lanes - 1;
+    ctx.fillStyle = isShoulder ? '#1C2733' : '#161B22';
+    ctx.fillRect(70, y, w - 84, laneH - 2);
+    // moving chevrons whose pace tracks speed
+    const phase = (pred.t * (vMph * 1.4)) % 34;
+    ctx.fillStyle = col;
+    for (let x = 70 + phase; x < w - 20; x += 34) ctx.fillRect(x, y + 4, 12, laneH - 10);
+    if (isShoulder){ ctx.fillStyle = '#2DD4BF'; ctx.font = '600 8px "IBM Plex Mono", monospace'; ctx.fillText('SHOULDER OPEN', 74, y + 9); }
+  }
+  // entry queue box
+  const qN = Math.round(pred.Q);
+  ctx.fillStyle = qN > 5 ? '#FF4D5E' : '#39455688';
+  ctx.fillRect(8, top, 54, lanes * laneH - 2);
+  ctx.fillStyle = '#07090C'; ctx.font = '700 11px "Chakra Petch", sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText(qN + ' Q', 35, top + lanes * laneH / 2 + 3);
+  ctx.textAlign = 'left'; ctx.fillStyle = '#7E8A9B'; ctx.font = '600 9px "IBM Plex Mono", monospace';
+  ctx.fillText('ENTRY', 12, h - 4);
+}
+
+function predTick(ts){
+  requestAnimationFrame(predTick);
+  if (!$('panel-pred').classList.contains('active')) { pred.last = ts; return; }
+  if (!pred.last) pred.last = ts;
+  let dt = Math.min(0.05, (ts - pred.last) / 1000);
+  pred.last = ts;
+  if (!pred.paused){
+    pred.acc += dt * pred.speedMul;
+    const h = 0.1; let guard = 0;
+    while (pred.acc >= h && guard++ < 24){
+      pStep(h); pred.acc -= h;
+      pred.sampleAcc = (pred.sampleAcc || 0) + h;
+      if (pred.sampleAcc >= 0.5){ pred.sampleAcc -= 0.5; pSample(); }
+    }
+    if (pred.t - pred.lastFit > 2){ pred.lastFit = pred.t; pFitAR(); }
+    if (pred.t - pred.lastCluster > 8){ pred.lastCluster = pred.t; pCluster(); }
+  }
+  drawPredRoad(); drawPredChart(); drawPredScatter();
+  // readouts
+  const vMph = pSpeed() / 1.609;
+  $('prClock').textContent = pClock();
+  $('prSpeed').innerHTML = Math.round(vMph) + ' <small>mph</small>';
+  $('prFlow').innerHTML = Math.round(pFD(pred.K, pLanes())) + ' <small>veh/h</small>';
+  $('prSamples').textContent = pred.hist.length;
+  $('prAR').textContent = 'a1=' + pred.ar.a1.toFixed(2) + ' a2=' + pred.ar.a2.toFixed(2);
+  const mae = pred.oneStep.length ? pred.oneStep.reduce((a, b) => a + b, 0) / pred.oneStep.length : null;
+  $('prMAE').innerHTML = mae === null ? '–' : mae.toFixed(1) + ' <small>mph</small>';
+  const reg = $('prRegime');
+  reg.textContent = pred.anomaly ? 'ANOMALY' : pred.regime;
+  reg.style.color = pred.anomaly ? 'var(--red)' : (pred.regime === 'Free flow' ? 'var(--teal)' : pred.regime === 'Heavy' ? 'var(--amber)' : 'var(--red)');
+  // queue warning logic from the forecast
+  const minFc = pred.fc.slice(0, 14).reduce((m, f) => Math.min(m, f.v), 99);
+  const qw = $('predQW');
+  if (vMph < 30){ qw.className = 'qw on red'; qw.innerHTML = '<b>QUEUE ACTIVE</b> · live speed under 30 mph, upstream signs set to 40 with queue-protection flashing'; }
+  else if (minFc < 30){ qw.className = 'qw on amber'; qw.innerHTML = '<b>QUEUE WARNING</b> · forecast says under 30 mph within the horizon; warning signs lit upstream to prevent secondary collisions'; }
+  else { qw.className = 'qw'; qw.innerHTML = 'No queue predicted inside the forecast horizon'; }
+  // dynamic lane recommendation from the pattern store
+  const hNow = (pred.t % P_DAY) / 6;
+  const dem1h = pDemand((hNow + 1) % 24);
+  const recEl = $('predLaneRec');
+  if (!pred.shoulder && dem1h > 0.92 * (P_QMAXL * 3)){
+    recEl.className = 'qw on teal';
+    recEl.innerHTML = '<b>PATTERN RECOMMENDATION</b> · demand within the next hour exceeds 92% of 3-lane capacity; open the shoulder lane';
+  } else if (pred.shoulder && dem1h < 0.7 * (P_QMAXL * 3)){
+    recEl.className = 'qw on teal';
+    recEl.innerHTML = '<b>PATTERN RECOMMENDATION</b> · demand has fallen; shoulder can close after the queue clears';
+  } else { recEl.className = 'qw'; recEl.textContent = 'Shoulder-lane recommendation engine watching the demand pattern'; }
+}
+
+/* ================= TAB 6 · SIGNAL TIMING (genetic algorithm + adaptive control) ================= */
+const SIG_C = 60;            // cycle, s
+const SIG_TAU = 32;          // arterial travel time between junctions, s
+const SIG_SAT = 0.5;         // saturation flow, veh/s per approach
+const SIG_LA = 1150, SIG_LX = 380, SIG_SIDE = 90;  // veh/h demands
+
+function sigPlanFixed(){ return [0,1,2,3].map(() => ({ g: 0.5, o: 0 })); }
+function mkSig(plan, seed){
+  return { t: 0, plan: plan.map(p => ({ g: p.g, o: p.o })), qA: [0,0,0,0], qX: [0,0,0,0],
+    buf: [[], [], []], arrived: 0, delay: 0, rng: mulberry32(seed), adaptive: false,
+    gSm: [0.5,0.5,0.5,0.5], snaps: [] };
+}
+function sigStep(S, dt){
+  const t = S.t;
+  // adaptive re-plan at each cycle boundary
+  if (S.adaptive && (t % SIG_C) < dt && t > 1){
+    for (let j = 0; j < 4; j++){
+      const ratio = S.qA[j] / (S.qA[j] + S.qX[j] + 0.01);
+      S.gSm[j] = 0.8 * S.gSm[j] + 0.2 * ratio;
+      S.plan[j].g = Math.max(0.25, Math.min(0.75, S.gSm[j]));
+    }
+  }
+  // arrivals (identical rng call pattern every step keeps replicas comparable)
+  for (let j = 0; j < 4; j++) S.qX[j] += SIG_LX / 3600 * dt * (1 + (S.rng() - 0.5) * 0.5);
+  S.qA[0] += SIG_LA / 3600 * dt * (1 + (S.rng() - 0.5) * 0.4);
+  S.arrived += SIG_LA / 3600 * dt + 4 * SIG_LX / 3600 * dt + 3 * SIG_SIDE / 3600 * dt;
+  for (let j = 1; j < 4; j++){
+    let inn = SIG_SIDE / 3600 * dt * (1 + (S.rng() - 0.5) * 0.5);
+    const buf = S.buf[j - 1];
+    while (buf.length && buf[0].t <= t - SIG_TAU){ inn += buf.shift().n; }
+    S.qA[j] += inn;
+  }
+  // service
+  for (let j = 0; j < 4; j++){
+    const c = ((t + S.plan[j].o) % SIG_C + SIG_C) % SIG_C;
+    const gC = S.plan[j].g * SIG_C;
+    const artGreen = c < gC;
+    const into = artGreen ? c : c - gC;          // time into current phase
+    const go = into > 1.8;                        // startup lost time
+    if (artGreen && go){
+      const dep = Math.min(S.qA[j], SIG_SAT * dt);
+      S.qA[j] -= dep;
+      if (j < 3) S.buf[j].push({ t, n: dep });
+    } else if (!artGreen && go){
+      S.qX[j] = Math.max(0, S.qX[j] - Math.min(S.qX[j], SIG_SAT * dt));
+    }
+  }
+  if (t > 60) S.delay += (S.qA[0]+S.qA[1]+S.qA[2]+S.qA[3]+S.qX[0]+S.qX[1]+S.qX[2]+S.qX[3]) * dt;
+  S.t += dt;
+}
+function sigDelayPerVeh(S){ return S.delay / Math.max(1, S.arrived - 60 * (SIG_LA + 4*SIG_LX + 3*SIG_SIDE) / 3600); }
+function sigRolling(S){
+  // rolling delay/veh over ~150 s using 1 s snapshots
+  if (!S.snaps.length || S.t - S.snaps[S.snaps.length - 1].t >= 1){
+    S.snaps.push({ t: S.t, d: S.delay, a: S.arrived });
+    if (S.snaps.length > 160) S.snaps.shift();
+  }
+  const a = S.snaps[0], b = S.snaps[S.snaps.length - 1];
+  const dv = (b.d - a.d) / Math.max(0.5, b.a - a.a);
+  return isFinite(dv) ? dv : 0;
+}
+
+/* ---- GA over [g,o] x 4 junctions ---- */
+function sigGenomePlan(g){ return [0,1,2,3].map(j => ({ g: g[j*2], o: g[j*2+1] })); }
+function sigFitness(genome){
+  const S = mkSig(sigGenomePlan(genome), 99);
+  for (let t = 0; t < 360; t += 0.25) sigStep(S, 0.25);
+  return sigDelayPerVeh(S);   // lower is better
+}
+const sigGA = { pop: [], fit: [], gen: 0, maxGen: 36, running: false, histBest: [], histMean: [], best: null, bestFit: null, fixedFit: null };
+function gaRandomGenome(rng){
+  const g = [];
+  for (let j = 0; j < 4; j++){ g.push(0.2 + rng() * 0.6); g.push(rng() * SIG_C); }
+  return g;
+}
+function gaInit(){
+  const rng = mulberry32(1234);
+  sigGA.pop = []; sigGA.histBest = []; sigGA.histMean = []; sigGA.gen = 0;
+  for (let i = 0; i < 24; i++) sigGA.pop.push(gaRandomGenome(rng));
+  // seed one member with the fixed plan as a baseline anchor
+  sigGA.pop[0] = [0.5,0, 0.5,0, 0.5,0, 0.5,0];
+  sigGA.fixedFit = sigFitness(sigGA.pop[0]);
+  sigGA.running = true; sigGA.rng = rng;
+}
+function gaGeneration(){
+  const G = sigGA, rng = G.rng;
+  G.fit = G.pop.map(sigFitness);
+  const idx = G.pop.map((_, i) => i).sort((a, b) => G.fit[a] - G.fit[b]);
+  const best = G.fit[idx[0]], mean = G.fit.reduce((a, b) => a + b, 0) / G.fit.length;
+  G.histBest.push(best); G.histMean.push(mean);
+  if (G.best === null || best < G.bestFit){ G.best = G.pop[idx[0]].slice(); G.bestFit = best; }
+  const tourney = () => {
+    let b = Math.floor(rng() * G.pop.length);
+    for (let k = 0; k < 2; k++){ const c = Math.floor(rng() * G.pop.length); if (G.fit[c] < G.fit[b]) b = c; }
+    return G.pop[b];
+  };
+  const next = [G.pop[idx[0]].slice(), G.pop[idx[1]].slice()];   // elitism
+  while (next.length < G.pop.length){
+    const a = tourney(), b = tourney(), child = [];
+    for (let i = 0; i < 8; i++){
+      const w = 0.3 + rng() * 0.4;
+      let v = a[i] * w + b[i] * (1 - w);                          // blend crossover
+      if (rng() < 0.25) v += (rng() - 0.5) * (i % 2 === 0 ? 0.14 : 12);  // mutation
+      if (i % 2 === 0) v = Math.max(0.2, Math.min(0.8, v));
+      else v = ((v % SIG_C) + SIG_C) % SIG_C;
+      child.push(v);
+    }
+    next.push(child);
+  }
+  G.pop = next; G.gen++;
+  if (G.gen >= G.maxGen){
+    G.running = false;
+    if (sig.reps) sig.reps.ga = mkSig(sigGenomePlan(G.best), 7); // apply evolved plan
+    $('gaBtn').textContent = '⚡ Re-run evolution';
+  }
+}
+
+/* ---- live replicas + view ---- */
+const sig = { paused: reduceMotion, last: 0, acc: 0, view: 'fixed', reps: null, speedMul: 1 };
+function signalsInit(){
+  sig.reps = {
+    fixed: mkSig(sigPlanFixed(), 7),
+    adapt: (() => { const S = mkSig(sigPlanFixed(), 7); S.adaptive = true; return S; })(),
+    ga: mkSig(sigGA.best ? sigGenomePlan(sigGA.best) : sigPlanFixed(), 7)
+  };
+}
+function drawSignals(){
+  const { ctx, w, h } = fitCanvas($('sigCanvas'), 220);
+  ctx.fillStyle = '#07090C'; ctx.fillRect(0, 0, w, h);
+  const S = sig.reps[sig.view];
+  const y = h * 0.62, x0 = 70, dx = (w - 140) / 3;
+  // arterial
+  ctx.fillStyle = '#161B22'; ctx.fillRect(20, y - 8, w - 40, 16);
+  for (let j = 0; j < 4; j++){
+    const x = x0 + j * dx;
+    // cross road
+    ctx.fillStyle = '#13181F'; ctx.fillRect(x - 8, 18, 16, h - 36);
+    // platoons on the link towards this junction
+    if (j > 0){
+      for (const pl of S.buf[j - 1]){
+        const f = Math.min(1, (S.t - pl.t) / SIG_TAU);
+        const px = x0 + (j - 1) * dx + f * dx;
+        const r = Math.min(7, 2 + pl.n * 9);
+        ctx.fillStyle = '#2DD4BF';
+        ctx.beginPath(); ctx.arc(px, y, r, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+    // queues: arterial bar to the left, cross bar above
+    const qa = Math.min(120, S.qA[j] * 7), qx = Math.min(70, S.qX[j] * 7);
+    ctx.fillStyle = '#FF4D5E';
+    ctx.fillRect(x - 12 - qa, y - 6, qa, 12);
+    ctx.fillStyle = '#FFB000';
+    ctx.fillRect(x - 5, y - 16 - qx, 10, qx);
+    // junction + lights
+    const c = ((S.t + S.plan[j].o) % SIG_C + SIG_C) % SIG_C;
+    const artGreen = c < S.plan[j].g * SIG_C;
+    ctx.fillStyle = '#222A36'; ctx.fillRect(x - 10, y - 10, 20, 20);
+    ctx.fillStyle = artGreen ? '#34D399' : '#FF4D5E';
+    ctx.beginPath(); ctx.arc(x, y + 16, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = artGreen ? '#FF4D5E' : '#34D399';
+    ctx.beginPath(); ctx.arc(x + 16, y, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#7E8A9B'; ctx.font = '600 9px "IBM Plex Mono", monospace'; ctx.textAlign = 'center';
+    ctx.fillText('J' + (j + 1) + ' g' + Math.round(S.plan[j].g * 100) + '% o' + Math.round(S.plan[j].o) + 's', x, h - 8);
+  }
+  ctx.textAlign = 'left'; ctx.fillStyle = '#7E8A9B'; ctx.font = '600 10px "IBM Plex Mono", monospace';
+  ctx.fillText('VIEWING: ' + sig.view.toUpperCase() + ' PLAN · red bar = arterial queue · amber = cross queue', 22, 14);
+}
+function drawGAChart(){
+  const F = chartFrame($('gaChart'), 200, 0);
+  const p = { l: 50, r: 14, t: 22, b: 30 };
+  const hb = sigGA.histBest, hm = sigGA.histMean;
+  if (!hb.length){
+    F.ctx.fillStyle = '#5A6678'; F.ctx.font = '400 11px "IBM Plex Mono", monospace'; F.ctx.textAlign = 'center';
+    F.ctx.fillText('Press EVOLVE to run the genetic algorithm', F.w / 2, F.h / 2);
+    return;
+  }
+  const ymax = Math.max(...hm, sigGA.fixedFit || 0) * 1.08;
+  const ax = axis(F.ctx, p, F.w, F.h, 0, Math.max(10, hb.length), 0, ymax, 'GENERATION', 'DELAY s/veh',
+    [0, 10, 20, 30], [0, Math.round(ymax / 2), Math.round(ymax)], v => v, v => v);
+  const ctx = F.ctx;
+  if (sigGA.fixedFit){
+    ctx.setLineDash([4, 5]); ctx.strokeStyle = '#39455688'; ctx.beginPath();
+    ctx.moveTo(p.l, ax.Y(sigGA.fixedFit)); ctx.lineTo(F.w - p.r, ax.Y(sigGA.fixedFit)); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = '#7E8A9B'; ctx.font = '400 9px "IBM Plex Mono", monospace'; ctx.textAlign = 'right';
+    ctx.fillText('FIXED PLAN', F.w - p.r - 4, ax.Y(sigGA.fixedFit) - 5);
+  }
+  const line = (data, col) => {
+    ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.beginPath();
+    data.forEach((v, i) => { const X = ax.X(i), Y = ax.Y(v); i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); });
+    ctx.stroke();
+  };
+  line(hm, '#FFB000'); line(hb, '#2DD4BF');
+  ctx.font = '600 9px "IBM Plex Mono", monospace'; ctx.textAlign = 'left';
+  ctx.fillStyle = '#2DD4BF'; ctx.fillText('BEST', p.l + 6, p.t + 10);
+  ctx.fillStyle = '#FFB000'; ctx.fillText('POPULATION MEAN', p.l + 46, p.t + 10);
+}
+function signalsTick(ts){
+  requestAnimationFrame(signalsTick);
+  if (!$('panel-signals').classList.contains('active')) { sig.last = ts; return; }
+  if (!sig.last) sig.last = ts;
+  let dt = Math.min(0.05, (ts - sig.last) / 1000);
+  sig.last = ts;
+  if (!sig.paused){
+    sig.acc += dt * sig.speedMul;
+    const h = 0.25; let guard = 0;
+    while (sig.acc >= h && guard++ < 16){
+      sigStep(sig.reps.fixed, h); sigStep(sig.reps.adapt, h); sigStep(sig.reps.ga, h);
+      sig.acc -= h;
+    }
+  }
+  if (sigGA.running){ gaGeneration(); if (sigGA.running) gaGeneration(); }
+  drawSignals(); drawGAChart();
+  const dF = sigRolling(sig.reps.fixed), dA = sigRolling(sig.reps.adapt), dG = sigRolling(sig.reps.ga);
+  $('sgFixed').innerHTML = dF.toFixed(1) + ' <small>s/veh</small>';
+  $('sgAdapt').innerHTML = dA.toFixed(1) + ' <small>s/veh</small>';
+  $('sgGA').innerHTML = (sigGA.best ? dG.toFixed(1) : '–') + (sigGA.best ? ' <small>s/veh</small>' : '');
+  $('sgGen').textContent = sigGA.running ? ('evolving · gen ' + sigGA.gen + '/' + sigGA.maxGen) : (sigGA.best ? 'plan applied' : 'not yet run');
+  $('sgImp').innerHTML = (sigGA.bestFit && sigGA.fixedFit)
+    ? Math.round(100 * (1 - sigGA.bestFit / sigGA.fixedFit)) + '<small>% vs fixed (offline)</small>' : '–';
+}
+
+/* ================= TAB 7 · NETWORK GRAPH (message passing + ETA + planning) ================= */
+const NET_NODES = { A:[60,150], B:[210,75], C:[420,75], D:[210,225], E:[420,225], F:[315,150], H:[570,150] };
+const NET_EDGES = [
+  { id:0, a:'A', b:'B', vf:112, len:0.9, lanes:3 },
+  { id:1, a:'B', b:'C', vf:112, len:0.9, lanes:3 },
+  { id:2, a:'C', b:'H', vf:112, len:0.9, lanes:3 },
+  { id:3, a:'A', b:'D', vf:72,  len:0.9, lanes:2 },
+  { id:4, a:'D', b:'E', vf:72,  len:0.9, lanes:2 },
+  { id:5, a:'E', b:'H', vf:72,  len:0.9, lanes:2 },
+  { id:6, a:'B', b:'F', vf:64,  len:0.5, lanes:1 },
+  { id:7, a:'F', b:'E', vf:64,  len:0.5, lanes:1 },
+  { id:8, a:'D', b:'F', vf:64,  len:0.5, lanes:1 },
+  { id:9, a:'F', b:'C', vf:64,  len:0.5, lanes:1 }
+];
+const NET_PATHS = [
+  { id:'M-way',   edges:[0,1,2],   col:'#2DD4BF' },
+  { id:'A-road',  edges:[3,4,5],   col:'#FFB000' },
+  { id:'Cut S',   edges:[0,6,7,5], col:'#56B0F4' },
+  { id:'Cut N',   edges:[3,8,9,2], col:'#C792EA' }
+];
+const NET_KJL = 151, NET_PKT = 8;       // veh per packet
+const net = { paused: reduceMotion, last: 0, acc: 0, t: 0, packets: [], shares: [0.7,0.2,0.05,0.05],
+  rng: mulberry32(31), spawnAcc: 0, stadAcc: 0, incidentUntil: -1, incidentEdge: 1, stadiumUntil: -1,
+  done: [], xPrev: null, preds: [], hits: 0, tries: 0, speedMul: 1 };
+
+function netSucc(e){ // successor edges actually used by some path after e
+  const out = new Set();
+  for (const p of NET_PATHS){
+    const i = p.edges.indexOf(e);
+    if (i >= 0 && i < p.edges.length - 1) out.add(p.edges[i + 1]);
+  }
+  return [...out];
+}
+const NET_SUCC = NET_EDGES.map(e => netSucc(e.id));
+
+function netCounts(){
+  const n = NET_EDGES.map(() => 0);
+  for (const pk of net.packets) n[pk.e]++;
+  return n;
+}
+function netSpeed(eid, counts){
+  const e = NET_EDGES[eid];
+  const K = (counts[eid] * NET_PKT) / (e.len * e.lanes);     // veh/km/lane
+  let v = e.vf * Math.max(0.05, 1 - Math.pow(Math.min(1, K / NET_KJL), 2));
+  if (net.t < net.incidentUntil && eid === net.incidentEdge) v *= 0.12;
+  return v;
+}
+function netETA(pathIdx, speeds){
+  let s = 0;
+  for (const eid of NET_PATHS[pathIdx].edges) s += NET_EDGES[eid].len / Math.max(3, speeds[eid]) * 3600;
+  return s;
+}
+function netStep(dt){
+  const counts = netCounts();
+  const speeds = NET_EDGES.map((e, i) => netSpeed(i, counts));
+  // route choice: logit on current ETA, smoothed
+  if (Math.floor(net.t) !== Math.floor(net.t + dt)){
+    const etas = NET_PATHS.map((_, i) => netETA(i, speeds));
+    const ex = etas.map(t => Math.exp(-t / 120));
+    const sum = ex.reduce((a, b) => a + b, 0);
+    net.shares = net.shares.map((s, i) => 0.9 * s + 0.1 * ex[i] / sum);
+  }
+  // demand: 6 200 veh/h at A, plus stadium egress at E when active
+  net.spawnAcc += 6800 / 3600 / NET_PKT * dt;
+  while (net.spawnAcc >= 1){
+    net.spawnAcc -= 1;
+    let r = net.rng(), pi = 0, acc = 0;
+    for (let i = 0; i < net.shares.length; i++){ acc += net.shares[i]; if (r <= acc){ pi = i; break; } }
+    net.packets.push({ path: pi, leg: 0, e: NET_PATHS[pi].edges[0], pos: 0, born: net.t });
+  }
+  if (net.t < net.stadiumUntil){
+    net.stadAcc += 2600 / 3600 / NET_PKT * dt;
+    while (net.stadAcc >= 1){ net.stadAcc -= 1; net.packets.push({ path: 1, leg: 2, e: 5, pos: 0, born: net.t, stad: true }); }
+  }
+  // move packets with spillback at node entries
+  const kj = NET_EDGES.map(e => Math.floor(NET_KJL * e.len * e.lanes / NET_PKT));
+  for (const pk of net.packets){
+    const e = NET_EDGES[pk.e];
+    pk.pos += speeds[pk.e] / 3600 * dt;          // km
+    if (pk.pos >= e.len){
+      const pathEdges = NET_PATHS[pk.path].edges;
+      if (pk.leg >= pathEdges.length - 1){ pk.dead = true; net.done.push(net.t); continue; }
+      const nxt = pathEdges[pk.leg + 1];
+      if (counts[nxt] < kj[nxt] * 0.93){          // room downstream: proceed
+        counts[pk.e]--; counts[nxt]++;
+        pk.leg++; pk.e = nxt; pk.pos = 0;
+      } else {                                     // blocked: wait at the stop line (spillback)
+        pk.pos = e.len;
+      }
+    }
+  }
+  net.packets = net.packets.filter(p => !p.dead);
+  while (net.done.length && net.done[0] < net.t - 60) net.done.shift();
+  net.t += dt;
+}
+
+/* ---- two rounds of neighbour message passing (the GNN core), fixed weights ---- */
+function netPredict(){
+  const counts = netCounts();
+  const x = NET_EDGES.map((e, i) => netSpeed(i, counts) / e.vf);
+  const round = (xs) => xs.map((xe, i) => {
+    const succ = NET_SUCC[i];
+    if (!succ.length) return xe;
+    let d = 0;
+    for (const u of succ){
+      const diff = xs[u] - xe;
+      d += (diff < 0 ? 0.5 : 0.12) * diff;        // congestion diffuses upstream faster than relief
+    }
+    return Math.max(0.05, Math.min(1, xe + d / succ.length));
+  });
+  let xh = round(round(x));
+  if (net.xPrev){
+    xh = xh.map((v, i) => Math.max(0.05, Math.min(1, v + 0.6 * (x[i] - net.xPrev[i]))));
+  }
+  net.xPrev = x;
+  // score earlier predictions that flagged an early warning
+  net.preds.push({ t: net.t, x: x.slice(), xh: xh.slice() });
+  while (net.preds.length && net.preds[0].t < net.t - 16){
+    const old = net.preds.shift();
+    old.x.forEach((xv, i) => {
+      if (old.xh[i] < 0.55 && xv >= 0.7){          // warned of congestion that was not yet visible
+        net.tries++;
+        if (x[i] < 0.62) net.hits++;
+      }
+    });
+    if (net.tries > 400){ net.hits = Math.round(net.hits * 0.5); net.tries = Math.round(net.tries * 0.5); }
+  }
+  return { x, xh };
+}
+
+function netInit(){
+  net.t = 0; net.packets = []; net.done = []; net.preds = []; net.hits = 0; net.tries = 0;
+  net.shares = [0.7, 0.2, 0.05, 0.05]; net.xPrev = null;
+  net.incidentUntil = -1; net.stadiumUntil = -1; net.rng = mulberry32(31); net.spawnAcc = 0; net.stadAcc = 0;
+  // prewarm so the network is populated on first view
+  for (let t = 0; t < 240; t += 0.5) netStep(0.5);
+}
+
+function drawNet(state){
+  const { ctx, w, h } = fitCanvas($('netCanvas'), 300);
+  ctx.fillStyle = '#07090C'; ctx.fillRect(0, 0, w, h);
+  const sx = w / 630, sy = h / 300;
+  const P = id => [NET_NODES[id][0] * sx + 20, NET_NODES[id][1] * sy];
+  const { x, xh } = state;
+  NET_EDGES.forEach((e, i) => {
+    const [x1, y1] = P(e.a), [x2, y2] = P(e.b);
+    // predicted state: outer halo
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = speedColor(xh[i] * 70 * MPH, 70 * MPH);
+    ctx.globalAlpha = 0.32; ctx.lineWidth = e.lanes * 4 + 9;
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    ctx.globalAlpha = 1;
+    // actual state: inner stroke
+    ctx.strokeStyle = speedColor(x[i] * 70 * MPH, 70 * MPH);
+    ctx.lineWidth = e.lanes * 3 + 2;
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    // incident marker
+    if (net.t < net.incidentUntil && i === net.incidentEdge){
+      ctx.fillStyle = '#FF4D5E'; ctx.font = '700 13px "Chakra Petch", sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText('✕ INCIDENT', (x1 + x2) / 2, (y1 + y2) / 2 - 12);
+    }
+    // queue-warning sign upstream of predicted congestion
+    if (xh[i] < 0.5 && x[i] >= 0.62){
+      ctx.fillStyle = '#FFB000'; ctx.font = '700 12px "Chakra Petch", sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText('⚠', (x1 * 0.7 + x2 * 0.3), (y1 * 0.7 + y2 * 0.3) - 9);
+    }
+  });
+  // packets
+  for (const pk of net.packets){
+    const e = NET_EDGES[pk.e];
+    const [x1, y1] = P(e.a), [x2, y2] = P(e.b);
+    const f = Math.min(1, pk.pos / e.len);
+    ctx.fillStyle = pk.stad ? '#C792EA' : '#E8EDF2';
+    ctx.globalAlpha = 0.85;
+    ctx.fillRect(x1 + (x2 - x1) * f - 1.5, y1 + (y2 - y1) * f - 1.5, 3, 3);
+    ctx.globalAlpha = 1;
+  }
+  // nodes
+  for (const id in NET_NODES){
+    const [nx, ny] = P(id);
+    ctx.fillStyle = '#222A36'; ctx.beginPath(); ctx.arc(nx, ny, 11, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#39455688'; ctx.stroke();
+    ctx.fillStyle = '#E8EDF2'; ctx.font = '700 10px "Chakra Petch", sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(id === 'A' ? 'S' : id === 'H' ? 'T' : id, nx, ny + 3.5);
+    if (net.t < net.stadiumUntil && id === 'E'){
+      ctx.fillStyle = '#C792EA'; ctx.font = '700 11px "Chakra Petch", sans-serif';
+      ctx.fillText('◆ STADIUM OUT', nx, ny + 28);
+    }
+  }
+  ctx.fillStyle = '#7E8A9B'; ctx.font = '600 9px "IBM Plex Mono", monospace'; ctx.textAlign = 'left';
+  ctx.fillText('INNER LINE = LIVE SPEED · OUTER HALO = MESSAGE-PASSING PREDICTION (+15s)', 14, 14);
+}
+
+function netTick(ts){
+  requestAnimationFrame(netTick);
+  if (!$('panel-net').classList.contains('active')) { net.last = ts; return; }
+  if (!net.last) net.last = ts;
+  let dt = Math.min(0.05, (ts - net.last) / 1000);
+  net.last = ts;
+  if (!net.paused){
+    net.acc += dt * net.speedMul;
+    const h = 0.25; let guard = 0;
+    while (net.acc >= h && guard++ < 20){ netStep(h); net.acc -= h; }
+  }
+  const state = netPredict();
+  drawNet(state);
+  // readouts
+  const counts = netCounts();
+  const speeds = NET_EDGES.map((e, i) => netSpeed(i, counts));
+  const meanX = state.x.reduce((a, b) => a + b, 0) / state.x.length;
+  $('ntMean').innerHTML = Math.round(meanX * 70) + ' <small>mph eq</small>';
+  $('ntThr').innerHTML = Math.round(net.done.length * NET_PKT * 60) + ' <small>veh/h S→T</small>';
+  $('ntHit').innerHTML = net.tries >= 5 ? Math.round(100 * net.hits / net.tries) + '<small>% (' + net.tries + ')</small>' : 'gathering';
+  // ETA panel for the two named routes, now and predicted
+  const etaNow = [0, 1].map(i => netETA(i, speeds));
+  const predSpeeds = NET_EDGES.map((e, i) => state.xh[i] * e.vf);
+  const etaPred = [0, 1].map(i => netETA(i, predSpeeds));
+  $('ntEtaM').innerHTML = Math.round(etaNow[0]) + 's <small>→ ' + Math.round(etaPred[0]) + 's pred</small>';
+  $('ntEtaA').innerHTML = Math.round(etaNow[1]) + 's <small>→ ' + Math.round(etaPred[1]) + 's pred</small>';
+  const banner = $('ntBanner');
+  if (etaPred[0] > etaPred[1] + 25){
+    banner.className = 'qw on amber';
+    banner.innerHTML = '<b>REROUTE</b> · prediction says the A-road wins by ' + Math.round(etaPred[0] - etaPred[1]) + 's before the motorway queue is even fully formed';
+  } else if (etaPred[1] > etaPred[0] + 25){
+    banner.className = 'qw on teal';
+    banner.innerHTML = '<b>STAY ON THE M-WAY</b> · predicted ' + Math.round(etaPred[1] - etaPred[0]) + 's faster than the A-road';
+  } else {
+    banner.className = 'qw';
+    banner.textContent = 'Routes within 25s of each other; no reroute worth the lane changes';
+  }
+  $('ntShares').textContent = NET_PATHS.map((p, i) => p.id + ' ' + Math.round(net.shares[i] * 100) + '%').join(' · ');
+}
+
+/* ================= TABS 5-7 · WIRING ================= */
+predInit(); signalsInit(); netInit();
+requestAnimationFrame(predTick);
+requestAnimationFrame(signalsTick);
+requestAnimationFrame(netTick);
+
+$('predIncident').addEventListener('click', () => { pred.incidentUntil = pred.t + 10; });
+$('predShoulder').addEventListener('click', (e) => {
+  pred.shoulder = !pred.shoulder;
+  e.currentTarget.textContent = pred.shoulder ? 'Close shoulder lane' : 'Open shoulder lane';
+  e.currentTarget.classList.toggle('go', pred.shoulder);
+});
+$('predPause').addEventListener('click', (e) => { pred.paused = !pred.paused; e.currentTarget.textContent = pred.paused ? 'Resume' : 'Pause'; });
+$('predReset').addEventListener('click', () => { predInit(); });
+$('predSpeedSlider').addEventListener('input', (e) => { pred.speedMul = +e.target.value; $('predSpeedOut').textContent = (+e.target.value).toFixed(1); });
+
+$('gaBtn').addEventListener('click', () => { if (!sigGA.running){ gaInit(); $('gaBtn').textContent = '⚡ Evolving…'; } });
+['fixed', 'adapt', 'ga'].forEach(v => {
+  $('sigView_' + v).addEventListener('click', () => {
+    sig.view = v;
+    ['fixed', 'adapt', 'ga'].forEach(u => $('sigView_' + u).classList.toggle('go', u === v));
+  });
+});
+$('sigView_fixed').classList.add('go');
+$('sigPause').addEventListener('click', (e) => { sig.paused = !sig.paused; e.currentTarget.textContent = sig.paused ? 'Resume' : 'Pause'; });
+$('sigReset').addEventListener('click', () => { signalsInit(); });
+
+$('ntIncident').addEventListener('click', () => { net.incidentUntil = net.t + 90; });
+$('ntStadium').addEventListener('click', () => { net.stadiumUntil = net.t + 120; });
+$('ntPause').addEventListener('click', (e) => { net.paused = !net.paused; e.currentTarget.textContent = net.paused ? 'Resume' : 'Pause'; });
+$('ntReset').addEventListener('click', () => { netInit(); });
+
+if (reduceMotion){
+  $('predPause').textContent = 'Resume';
+  $('sigPause').textContent = 'Resume';
+  $('ntPause').textContent = 'Resume';
+}
 
 /* ================= INIT ================= */
 let resizeT = null;
